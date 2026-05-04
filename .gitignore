@@ -10,3 +10,4 @@ tests/
 # 忽略 IDE 文件
 .vscode/
 .idea/
+.claude/
