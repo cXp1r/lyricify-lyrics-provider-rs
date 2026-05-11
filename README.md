@@ -1,25 +1,28 @@
 ﻿# Lyrix
 ## 声明
+- 虽然部分源码由ai移植[Lyricify-Lyrics-Helper](https://github.com/WXRIW/Lyricify-Lyrics-Helper)而来，但是每一行代码已经本人审计
+- 本人新手，该项目同时用于熟悉rust基础语法
 
-仓库自用,并提供给自己参与开发的仓库用,不处理歌词元信息
-µs级别解析
-
-smtc信息请在外部处理好,对照接口传入
-最终返回只有歌词...
+## 优点
+- 封装了统一函数可以直接接收smtc信息进行歌词解析
+- memchr予以的超高性能，无需预热或优化即可实现1ms一下解析
 
 ## 功能
 
-- **Providers** — 网易云、QQ音乐、酷狗、汽水音乐的 API 客户端,源于[Lyricify-Lyrics-Helper](https://github.com/WXRIW/Lyricify-Lyrics-Helper)
+- **Providers** — 网易云、QQ音乐、酷狗、汽水音乐的 API 客户端
 - **Searchers** — 弱智评分机制 + 神人匹配字符串,返回最佳匹配
 - **Parsers** — µs级别解析网易云,汽水,QQ音乐,酷狗音乐歌词,可解析**逐字高亮歌词**
 
 ## 安装
 
-在 `Cargo.toml` 中添加：
+cargo add lyrix
 
+或
+
+在 `Cargo.toml` 中添加：
 ```toml
 [dependencies]
-lyrix = { path = "../lyrix" }
+lyrix = { version = "26.2.1" }
 tokio = { version = "1", features = ["full"] }
 ```
 
