@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use crate::providers::applemusic::ApplemusicApi;
 use super::{ISearcher, ISearchResult, SearcherType};
+use crate::models::ITrackMetadata;
+
 pub struct ApplemusicSearcher {
     api: ApplemusicApi,
 }
@@ -88,12 +90,13 @@ impl ISearcher for ApplemusicSearcher {
         // Artist match
         let d: Vec<String> = track
             .artist()
-            .unwrap_or(vec!["",""])   //防止下面崩溃
+            .unwrap_or_default()   //防止下面崩溃
             .split("—")
             .map(|s| s.trim().to_lowercase())
             .filter(|s| !s.is_empty())
             .collect();
-        let artists: Vec<String> = d[0].split("、")
+        let artists: Vec<String> = d.get(0).unwrap_or(&String::new())
+            .split("、")
             .map(|s| s.trim().to_lowercase())
             .filter(|s| !s.is_empty())
             .collect();
@@ -108,7 +111,7 @@ impl ISearcher for ApplemusicSearcher {
 
         //println!("{} {}",result.artists().join("||"),score);
         // Album match
-        let track_album = d[1];
+        let track_album = d.get(1).unwrap_or(&String::new()).clone();
         let result_album = result.album().to_lowercase();
         if !track_album.is_empty() && !result_album.is_empty() && track_album == result_album {
             score += 1;
