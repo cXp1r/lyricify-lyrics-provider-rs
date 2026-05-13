@@ -35,8 +35,9 @@ impl ISearcher for ApplemusicSearcher {
                 if let Some(songs) = res.songs {
                     if let Some(songsv) = songs.data{
                         for song in songsv {
+                            let id = song.id.clone().unwrap_or_default();
                             if let Some(info) = song.attributes{
-
+                                
                                 let title = info.name.clone().unwrap_or_default();
                                 let singer = info.artist_name.clone().unwrap_or_default();
                                 let artists: Vec<String> = singer.split('、')//中文区顿号
@@ -47,6 +48,7 @@ impl ISearcher for ApplemusicSearcher {
                                 let duration = info.duration_in_millis.map(|d| (d * 1000) as u32);
                                 let has_lyrics = info.has_lyrics.clone().unwrap_or(false);
                                 results.push(Box::new(ApplemusicSearchResult {
+                                    id,
                                     title,
                                     artists,
                                     album,
@@ -144,6 +146,7 @@ impl ISearcher for ApplemusicSearcher {
 }
 
 pub struct ApplemusicSearchResult {
+    pub id: String,
     pub title: String,
     pub artists: Vec<String>,
     pub album: String,
