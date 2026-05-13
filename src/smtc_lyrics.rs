@@ -384,26 +384,29 @@ async fn fetch_apple_music_lyrics(
     let detail = api.get_lyric(&id).await?
         .ok_or("applemusic: 获取歌曲详情失败")?;
 
-    if let Some(lyric_info) = detail.attributes {
-        if let Some(content) = lyric_info.ttml_localizations {
-            if !content.is_empty() {
-                let parser = AppleMusicParser {};
+    if let Some(lyric_data) = detail.data {
+        let u = lyric_data.get(0).unwrap();
+        if let Some(att) = &u.attributes {
+            if let Some(lyrics) = &att.ttml_localizations{
+                if !lyrics.is_empty() {
+                    let parser = AppleMusicParser {};
 
-                let data = LyricsData {
-                    file: None,
-                    lines: parser.parse(content)?,
-                    track_metadata: 
-                        Some(TrackMetadata {
-                            title: Some(best.title.clone()),
-                            artist: Some(best.artists.join(", ")),
-                            album: Some(best.album.clone()),
-                            duration_ms: best.duration_ms,
-                            ..Default::default()
-                        }),
-                };
-
-                return Ok(data);
+                    let data = LyricsData {
+                        file: None,
+                        lines: parser.parse(lyrics.to_string())?,
+                        track_metadata: 
+                            Some(TrackMetadata {
+                                title: Some(best.title.clone()),
+                                artist: Some(best.artists.join(", ")),
+                                album: Some(best.album.clone()),
+                                duration_ms: best.duration_ms,
+                                ..Default::default()
+                            }),
+                    };
+                    return Ok(data);
+                }
             }
+        
             return Err("applemusic: 歌词内容为空".into());
         }
         return Err("applemusic: 无歌曲详细信息".into());
@@ -486,6 +489,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_apple_music(){
+        *TOKEN.lock().unwrap() = "自己填自己的".to_string();
         let a = "小糸 侑(CV:高田憂希)、七海燈子(CV:寿 美菜子) — TVアニメ「やがて君になる」エンディングテーマ「hectopascal」 - EP".to_string();
         let track = TrackMetadata {
             title: Some("hectopascal".to_string()),
@@ -496,7 +500,7 @@ mod tests {
             ..Default::default()
         };
         #[allow(unused_variables)]
-        let result = fetch_soda_music_lyrics(&track).await;
+        let result = fetch_apple_music_lyrics(&track).await;
         println!("{:?}",result)
     }
 }

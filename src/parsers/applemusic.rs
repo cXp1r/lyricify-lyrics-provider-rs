@@ -29,7 +29,6 @@ impl AppleMusicParser {
         let Some(mut cpos) = memmem::find(lyrics.as_bytes(), b"div") else {
             return Err("Applemusic Parser: lyrics body not found".into());
         };
-        println!("{}",cpos);
         let ulyrics = &lyrics[cpos..];
         let len = ulyrics.len();
         let bytes = ulyrics.as_bytes();

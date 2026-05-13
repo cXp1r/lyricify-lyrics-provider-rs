@@ -66,6 +66,18 @@ impl ISearcher for ApplemusicSearcher {
 
         Ok(results)
     }
+    async fn make_search_string(&self, track: &dyn ITrackMetadata) -> Option<String> {
+        let combined = format!(
+            "{}",
+            track.title().unwrap_or_default(),
+        ).replace(" - ", " ").trim().to_string();
+
+        if combined.is_empty() {
+            None
+        } else {
+            Some(combined)
+        }
+    }
     fn compare_track(&self, track: &dyn ITrackMetadata, result: &dyn ISearchResult) -> i8 {
         let mut score = 0i8;
 
