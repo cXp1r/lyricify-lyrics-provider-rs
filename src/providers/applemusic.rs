@@ -42,7 +42,7 @@ impl ApplemusicApi {
         Ok(serde_json::from_str(&resp).ok())
     }
 
-    pub async fn get_lyric(&self, id: &str) -> Result<LyricResult, reqwest::Error> {
+    pub async fn get_lyric(&self, id: &str) -> Result<Option<LyricResult>, reqwest::Error> {
         let url = format!(
             "https://amp-api.music.apple.com/v1/catalog/cn/songs/{}/syllable-lyrics?{}={}&{}={}&extend=ttmlLocalizations",
             id,
@@ -52,8 +52,7 @@ impl ApplemusicApi {
             urlencoding::encode("zh-Hans"),
         );
         let resp = self.api.get_async(&url).await?;
-        let parsed: LyricResult = serde_json::from_str(&resp).unwrap_or_default();
-        Ok(parsed)
+        Ok(serde_json::from_str(&resp).ok())
     }
 }
 
