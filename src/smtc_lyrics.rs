@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use crate::models::{
     TrackMetadata,
     LyricsData
@@ -7,7 +9,8 @@ use crate::searchers::{
     netease::NeteaseSearchResult,
     qqmusic::QQMusicSearchResult,
     kugou::KugouSearchResult,
-    soda_music::SodaMusicSearchResult
+    soda_music::SodaMusicSearchResult,
+    applemusic::ApplemusicSearchResult,
 };
 use crate::parsers::{
     IParsers,
@@ -22,9 +25,10 @@ use crate::parsers::{
     },
     kugou::KugouParser,
     soda_music::SodaParser,
+    applemusic::AppleMusicParser,
 };
 
-
+static TOKEN: Mutex<String> = Mutex::new(String::new());
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MusicPlayer {
     /// 酷狗音乐
@@ -35,6 +39,8 @@ pub enum MusicPlayer {
     QQMusic,
     /// 汽水音乐
     SodaMusic,
+    /// Applemusic
+    AppleMusic
 }
 
 impl MusicPlayer {
@@ -45,6 +51,7 @@ impl MusicPlayer {
             MusicPlayer::Netease => "cloudmusic.exe",
             MusicPlayer::QQMusic => "QQMusic.exe",
             MusicPlayer::SodaMusic => "SodaMusic.exe",
+            MusicPlayer::AppleMusic => "AppleMusic",
         }
     }
 
@@ -55,6 +62,7 @@ impl MusicPlayer {
             MusicPlayer::Netease => "网易云音乐",
             MusicPlayer::QQMusic => "QQ音乐",
             MusicPlayer::SodaMusic => "汽水音乐",
+            MusicPlayer::AppleMusic => "AppleMusic",
         }
     }
 
@@ -65,6 +73,7 @@ impl MusicPlayer {
             MusicPlayer::Netease,
             MusicPlayer::QQMusic,
             MusicPlayer::SodaMusic,
+            MusicPlayer::AppleMusic,
         ]
     }
 }
@@ -143,6 +152,7 @@ async fn fetch_lyrics_from_player(
         MusicPlayer::QQMusic => fetch_qqmusic_lyrics(track).await,
         MusicPlayer::Kugou => fetch_kugou_lyrics(track).await,
         MusicPlayer::SodaMusic => fetch_soda_music_lyrics(track).await,
+        MusicPlayer::AppleMusic => fetch_apple_music_lyrics(track).await,
     }
 }
 
@@ -350,6 +360,57 @@ async fn fetch_soda_music_lyrics(
 }
 
 
+async fn fetch_apple_music_lyrics(
+    track: &TrackMetadata,
+) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
+    use crate::searchers::applemusic::ApplemusicSearcher;
+    use crate::providers::applemusic::ApplemusicApi;
+    let token = TOKEN.lock().unwrap().as_str().to_string();
+    let searcher = ApplemusicSearcher::new(token.clone());
+    let result = match searcher.search_for_result(track).await {
+        Ok(Some(r)) => r,
+        Ok(None) => return Err("applemusic: 未找到匹配的歌曲".into()),
+        Err(e) => return Err(e),
+    };
+
+    let best = result
+        .as_any()
+        .downcast_ref::<ApplemusicSearchResult>()
+        .ok_or("applemusic: 搜索结果类型不匹配")?;
+
+    let id = best.id.clone();
+
+    let api = ApplemusicApi::new(token);
+    let detail = api.get_lyric(&id).await?
+        .ok_or("applemusic: 获取歌曲详情失败")?;
+
+    if let Some(lyric_info) = detail.attributes {
+        if let Some(content) = lyric_info.ttml_localizations {
+            if !content.is_empty() {
+                let parser = AppleMusicParser {};
+
+                let data = LyricsData {
+                    file: None,
+                    lines: parser.parse(content)?,
+                    track_metadata: 
+                        Some(TrackMetadata {
+                            title: Some(best.title.clone()),
+                            artist: Some(best.artists.join(", ")),
+                            album: Some(best.album.clone()),
+                            duration_ms: best.duration_ms,
+                            ..Default::default()
+                        }),
+                };
+
+                return Ok(data);
+            }
+            return Err("applemusic: 歌词内容为空".into());
+        }
+        return Err("applemusic: 无歌曲详细信息".into());
+    }
+    Err("applemusic: 歌曲没有歌词".into())
+
+}
 //bro 懂我的歌品
 #[cfg(test)]
 mod tests {
@@ -418,6 +479,22 @@ mod tests {
     #[tokio::test]
     async fn test_soda_music(){
         let track = jtrack(",");
+        #[allow(unused_variables)]
+        let result = fetch_soda_music_lyrics(&track).await;
+        println!("{:?}",result)
+    }
+
+    #[tokio::test]
+    async fn test_apple_music(){
+        let a = "小糸 侑(CV:高田憂希)、七海燈子(CV:寿 美菜子) — TVアニメ「やがて君になる」エンディングテーマ「hectopascal」 - EP".to_string();
+        let track = TrackMetadata {
+            title: Some("hectopascal".to_string()),
+            artist: Some(a.clone()),
+            album: Some(a.clone()),
+            album_artist: Some(a),
+            duration_ms: Some(237507),
+            ..Default::default()
+        };
         #[allow(unused_variables)]
         let result = fetch_soda_music_lyrics(&track).await;
         println!("{:?}",result)
