@@ -1,6 +1,6 @@
 [package]
 name = "lyrix"
-version = "26.2.1"
+version = "26.3.1"
 edition = "2021"
 description = "High-performance lyrics tool"
 license = "Apache-2.0"
