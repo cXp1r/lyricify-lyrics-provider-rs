@@ -22,7 +22,7 @@
 - **Providers** — 网易云,QQ音乐,酷狗,汽水音乐,AppleMusic的 API 客户端
 - **Searchers** — 弱智评分机制 + 神人匹配字符串,返回最佳匹配
 - **Parsers** — µs级别解析网易云,汽水,QQ音乐,酷狗音乐,AppleMusic歌词,可解析**逐字高亮歌词**
-
+- **smtc_lyrics** — 一键从smtc信息到歌词, 另有试用区间歌词捕获
 ## 安装
 
 cargo add lyrix
@@ -37,20 +37,6 @@ tokio = { version = "1", features = ["full"] }
 ```
 
 
-## 快速上手
-
-照着你的smtc获取到的传就是了,酷狗提供album_artist而不是album
-
-指定参数
-get_lyrics(
-    title: &str,
-    artist: Option<&str>,
-    album: Option<&str>,
-    album_artist: Option<&str>,
-    duration_ms: u32,
-)
-
-
 ### 访问解析/模型/工具模块
 
 ```rust
@@ -61,12 +47,13 @@ use lyrix::helpers;
 
 ## 支持的播放器
 
-| 播放器 | 枚举值 | 进程名 | 歌词源 |
+| 播放器 | 枚举值 | appid | 歌词源 |
 |--------|--------|--------|--------|
-| 酷狗音乐 | `MusicPlayer::Kugou` | `KuGou.exe` | 酷狗 API |
+| 酷狗音乐 | `MusicPlayer::Kugou` | `kugou` | 酷狗 API |
 | 网易云音乐 | `MusicPlayer::Netease` | `cloudmusic.exe` | 网易云 API（优先 YRC 逐字，回退 LRC） |
-| QQ音乐 | `MusicPlayer::QQMusic` | `QQMusic.exe` | QQ音乐 API |
-| 汽水音乐 | `MusicPlayer::SodaMusic` | `SodaMusic.exe` | 汽水音乐 API |
+| QQ音乐 | `MusicPlayer::QQMusic` | `qqmusic.exe` | QQ音乐 API |
+| 汽水音乐 | `MusicPlayer::SodaMusic` | `汽水音乐` | 汽水音乐 API |
+| 汽水音乐 | `MusicPlayer::AppleMusic` | `AppleInc.AppleMusicWin_nzyj5cx40ttqa!App` | AppleMusic API |
 
 ## 模块结构
 
@@ -76,7 +63,6 @@ src/
 ├── smtc_lyrics.rs
 ├── models/
 │   ├── mod.rs
-│   ├── additional_file_info.rs
 │   ├── file_info.rs
 │   ├── line_info.rs
 │   ├── lyrics_data.rs
@@ -85,7 +71,7 @@ src/
 │   └── track_metadata.rs
 ├── parsers/
 │   ├── mod.rs
-│   ├── attributes_helper.rs
+│   ├── applemusic.rs
 │   ├── kugou.rs
 │   ├── lrc.rs
 │   ├── netease.rs
@@ -94,9 +80,11 @@ src/
 │   └── decrypt/
 │       ├── mod.rs
 │       ├── krc.rs
+│       ├── netease.rs
 │       └── qrc.rs
 ├── providers/
 │   ├── mod.rs
+│   ├── applemusic.rs
 │   ├── base_api.rs
 │   ├── kugou.rs
 │   ├── netease.rs
@@ -105,6 +93,7 @@ src/
 │   └── soda_music.rs
 └── searchers/
     ├── mod.rs
+    ├── applemusic.rs
     ├── kugou.rs
     ├── netease.rs
     ├── qqmusic.rs
