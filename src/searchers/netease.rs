@@ -45,10 +45,9 @@ impl ISearcher for NeteaseSearcher {
                     };
                     let trial = {
                         if let Some(trial) = self.api.get_detail(&id).await? {
-                            
                             if let Some(data) = trial.data {
                                 if let Some(data) = data.get(0) {
-                                    if let Some(info) = &data.freetrialinfo {
+                                    if let Some(info) = &data.free_trial_info {
                                         if let (Some(s), Some(e)) = (info.start, info.end) {
                                             Some([s as u32 * 1000, (e - s) as u32 * 1000])
                                         } else {

@@ -71,19 +71,24 @@ impl NeteaseApi {
 
     /// 获取歌曲详情
     pub async fn get_detail(&self, id: &str) -> Result<Option<DetailResult>, reqwest::Error> {
-        let url = "api/song/enhance/player/url/v1";
+        let url = "/api/song/enhance/player/url/v1";
         let body = format!(
             r#"{{"ids":"[\"{id}\"]","level":"exhigh","encodeType":"aac","csrf_token":""}}"#
         );
         let p = crate::parsers::decrypt::netease::eapi_encrypt(url, &body).unwrap_or(String::new());
-        println!("{:?}", p);
-        let mut params = HashMap::new();
-        params.insert("param".to_string(), serde_json::to_string(&p).unwrap_or_default());
-        let resp = self.api.post_form_async(
-            "https://interface3.music.163.com/eapi/api/song/enhance/player/url/v1",
-            &params,
-        ).await?;
+        
+        let client = reqwest::Client::builder()
+            .user_agent("Mozilla/5.0")
+            .build()?;
 
+        let res = client
+            .post(format!("https://music.163.com/eapi/song/enhance/player/url/v1"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Cookie", "WEVNSM=1.0.0; os=pc; osver=Microsoft-Windows-11-Professional-build-114514-64bit; channel=netease; mode=System Product Name;appver=3.1.32.205206")
+            .form(&[("params", p.as_str())])
+            .send()
+            .await?;
+        let resp = res.text().await?;
         Ok(serde_json::from_str(&resp).ok())
     }
 }
@@ -139,7 +144,7 @@ pub struct DetailResult {
 #[derive(Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Detail {
-    pub freetrialinfo: Option<Trial>,
+    pub free_trial_info: Option<Trial>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -189,4 +194,14 @@ pub struct Album {
 pub struct Artist {
     pub name: Option<String>,
     pub id: Option<i64>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn test() {
+        let n = NeteaseApi::new();
+        let _x = n.get_detail("1939760528").await;
+    }
 }
