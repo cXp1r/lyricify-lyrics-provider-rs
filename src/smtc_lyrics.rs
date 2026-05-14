@@ -1,8 +1,7 @@
 use std::sync::Mutex;
 
 use crate::models::{
-    TrackMetadata,
-    LyricsData
+    LineInfo, LyricsData, TrackMetadata
 };
 use crate::searchers::{
     ISearcher,
@@ -140,6 +139,41 @@ pub async fn get_lyrics_with_appid(
 
     fetch_lyrics_from_player(&player, &metadata).await
 }
+
+
+
+
+pub fn get_trial_part(raw: LyricsData) -> Result<LyricsData, String>{
+    //请在上游判断好是否需要截取试用片段
+    let (st, du) = match &raw.track_metadata {
+        Some(op) => match &op.trial {
+            Some(trial) => (trial[0], trial[1]),
+            None => return Err("cannot find trial info".into()),
+        },
+        None => return Err("cannot find track_metadata".into()),
+    };
+    let raw_lines= raw.lines;
+    let mut new_lines: Vec<LineInfo> = Vec::new();
+    for x in raw_lines {
+        if x.start_time < st {
+            continue;
+        }
+        if x.start_time > st + du {
+            break;
+        }
+        new_lines.push(
+            LineInfo { start_time: x.start_time - st, ..x }
+        );
+    }
+    Ok(
+        LyricsData { lines: new_lines, ..raw }
+    )
+}
+
+
+
+
+
 
 
 //分发
@@ -448,7 +482,7 @@ mod tests {
             artist: Some(format!("The Weeknd")),
             album: Some("".to_string()),
             album_artist: Some("".to_string()),
-            duration_ms: Some(30000u32),
+            duration_ms: Some(60000u32),
             ..Default::default()
         }
     }
@@ -504,15 +538,20 @@ mod tests {
         let track = etrack("/");
         #[allow(unused_variables)]
         let result = fetch_netease_lyrics(&track).await;
-        println!("{:?}",result)
+        println!("{:?}",&result);
+        let n = get_trial_part(result.unwrap());
+        println!("{:?}",n);
     }
 
     #[tokio::test]
     async fn test_qqmusic(){
-        let track = jtrack("/");
+        let track = etrack("/");
         #[allow(unused_variables)]
         let result = fetch_qqmusic_lyrics(&track).await;
-        println!("{:?}",result)        
+        println!("{:?}",result);
+        let n = get_trial_part(result.unwrap());
+        println!("{:?}",n);
+             
     }
 
     #[tokio::test]
