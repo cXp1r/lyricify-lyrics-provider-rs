@@ -43,17 +43,6 @@ pub enum MusicPlayer {
 }
 
 impl MusicPlayer {
-    /// 播放器进程名
-    pub fn process_name(&self) -> &str {
-        match self {
-            MusicPlayer::Kugou => "KuGou.exe",
-            MusicPlayer::Netease => "cloudmusic.exe",
-            MusicPlayer::QQMusic => "QQMusic.exe",
-            MusicPlayer::SodaMusic => "SodaMusic.exe",
-            MusicPlayer::AppleMusic => "AppleMusic",
-        }
-    }
-
     /// 播放器显示名称
     pub fn display_name(&self) -> &str {
         match self {
@@ -77,7 +66,18 @@ impl MusicPlayer {
     }
 }
 
-
+pub fn id2player(app_id: &str) -> Result<MusicPlayer, String> {
+    Ok(match app_id {
+        "cloudmusic.exe" => MusicPlayer::Netease,
+        "qqmusic.exe" => MusicPlayer::QQMusic,
+        "kugou" => MusicPlayer::Kugou,
+        "\u{6c7d}\u{6c34}\u{97f3}\u{4e50}" => MusicPlayer::SodaMusic,
+        "AppleInc.AppleMusicWin_nzyj5cx40ttqa!App" => MusicPlayer::AppleMusic,
+        _ => {
+        return Err(format!("Unsupported appid: {}", app_id).into());
+        }
+    })
+}
 // ===== 公开接口 =====
 
 /// 获取歌词
@@ -119,15 +119,7 @@ pub async fn get_lyrics_with_appid(
     album_artist: Option<&str>,
     duration_ms: u32,
 ) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
-    let player = match app_id {
-        "cloudmusic.exe" => MusicPlayer::Netease,
-        "qqmusic.exe" => MusicPlayer::QQMusic,
-        "kugou" => MusicPlayer::Kugou,
-        "\u{6c7d}\u{6c34}\u{97f3}\u{4e50}" => MusicPlayer::SodaMusic,
-        _ => {
-            return Err(format!("Unsupported appid: {}", app_id).into());
-        }
-    };
+    let player = id2player(app_id)?;
     let metadata = TrackMetadata {
         title: Some(title.to_string()),
         artist: artist.map(|s| s.to_string()),
