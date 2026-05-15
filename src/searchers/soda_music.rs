@@ -46,8 +46,12 @@ impl ISearcher for SodaMusicSearcher {
                                     let id = track.id.unwrap_or_default();
                                     let trial = {
                                         if let Some(preview) = track.preview {
-                                            if let (Some(s), Some(d)) = (preview.start, preview.duration) {
-                                                Some([s, d])
+                                            if let Some(d) = preview.duration {
+                                                if let Some(s) = preview.start {
+                                                    Some([s, d])
+                                                } else {
+                                                    Some([0, d])
+                                                }
                                             } else {
                                                 None
                                             }

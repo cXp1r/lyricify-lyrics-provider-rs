@@ -556,7 +556,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_soda_music(){
-        let track = jtrack(",");
+        let track = TrackMetadata {
+            title: Some("Moth To A Flame".to_string()),
+            artist: Some(format!("The Weeknd")),
+            album: Some("".to_string()),
+            album_artist: Some("".to_string()),
+            duration_ms: Some(29001u32),
+            ..Default::default()
+        };
         #[allow(unused_variables)]
         let result = fetch_soda_music_lyrics(&track).await;
         println!("{:?}",result)
