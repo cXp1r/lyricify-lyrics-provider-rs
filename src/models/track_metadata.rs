@@ -28,6 +28,7 @@ pub struct TrackMetadata {
     pub isrc: Option<String>,
     pub language: Option<Vec<String>>,
     pub note: Option<String>,
+    pub score: i8,
     pub trial: Option<[u32; 2]>,
     pub is_trial: bool,
 }
