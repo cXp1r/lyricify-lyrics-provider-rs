@@ -1,49 +1,23 @@
 use std::sync::Mutex;
+use async_trait::async_trait;
 
-use crate::models::{
-    LineInfo, LyricsData, TrackMetadata
-};
-use crate::searchers::{
-    ISearcher,
-    netease::NeteaseSearchResult,
-    qqmusic::QQMusicSearchResult,
-    kugou::KugouSearchResult,
-    soda_music::SodaMusicSearchResult,
-    applemusic::ApplemusicSearchResult,
-};
-use crate::parsers::{
-    IParsers,
-    lrc::LrcParser,
-    netease::{
-        NeteaseParser,
-        NeteaseLrcParser
-    },
-    qqmusic::{
-        QQMusicParser,
-        QQMusicLrcParser
-    },
-    kugou::KugouParser,
-    soda_music::SodaParser,
-    applemusic::AppleMusicParser,
-};
+use crate::models::{LineInfo, LyricsData, TrackMetadata, ITrackMetadata};
+use crate::searchers::{ISearcher, ISearchResult};
 
 pub static TOKEN: Mutex<String> = Mutex::new(String::new());
+
+// ===== MusicPlayer =====
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MusicPlayer {
-    /// 酷狗音乐
     Kugou,
-    /// 网易云音乐
     Netease,
-    /// QQ音乐
     QQMusic,
-    /// 汽水音乐
     SodaMusic,
-    /// Applemusic
-    AppleMusic
+    AppleMusic,
 }
 
 impl MusicPlayer {
-    /// 播放器显示名称
     pub fn display_name(&self) -> &str {
         match self {
             MusicPlayer::Kugou => "酷狗音乐",
@@ -54,7 +28,6 @@ impl MusicPlayer {
         }
     }
 
-    /// 所有支持的播放器 (已按首字母排序)
     pub fn all_sorted() -> &'static [MusicPlayer] {
         &[
             MusicPlayer::Kugou,
@@ -73,24 +46,12 @@ pub fn id2player(app_id: &str) -> Result<MusicPlayer, String> {
         "kugou" => MusicPlayer::Kugou,
         "\u{6c7d}\u{6c34}\u{97f3}\u{4e50}" => MusicPlayer::SodaMusic,
         "AppleInc.AppleMusicWin_nzyj5cx40ttqa!App" => MusicPlayer::AppleMusic,
-        _ => {
-        return Err(format!("Unsupported appid: {}", app_id).into());
-        }
+        _ => return Err(format!("Unsupported appid: {}", app_id)),
     })
 }
+
 // ===== 公开接口 =====
 
-/// 获取歌词
-/// # 参数
-/// - `title` — 歌曲名 (必填)
-/// - `artist` — 歌手名 (可选，推荐提供)
-/// - `album` — 专辑名 (可选)
-/// - `album_artist` — 专辑艺术家 (可选)
-/// - `duration_ms` — 时长毫秒 (可选)
-///
-/// # 返回
-/// - `Ok((MusicPlayer, LyricsData))` — 使用的播放器源 + 歌词数据
-/// - `Err(...)` — 未检测到播放器，或获取歌词失败
 pub async fn get_lyrics_with_player(
     player: &MusicPlayer,
     title: &str,
@@ -107,10 +68,9 @@ pub async fn get_lyrics_with_player(
         duration_ms: Some(duration_ms),
         ..Default::default()
     };
-
     fetch_lyrics_from_player(player, &metadata).await
 }
-/// 获取歌词 appid为smtc获取到的appid
+
 pub async fn get_lyrics_with_appid(
     app_id: &str,
     title: &str,
@@ -128,15 +88,10 @@ pub async fn get_lyrics_with_appid(
         duration_ms: Some(duration_ms),
         ..Default::default()
     };
-
     fetch_lyrics_from_player(&player, &metadata).await
 }
 
-
-
-
-pub fn get_trial_part(raw: LyricsData) -> Result<LyricsData, String>{
-    //请在上游判断好是否需要截取试用片段
+pub fn get_trial_part(raw: LyricsData) -> Result<LyricsData, String> {
     let (st, du) = match &raw.track_metadata {
         Some(op) => match &op.trial {
             Some(trial) => (trial[0], trial[1]),
@@ -153,305 +108,281 @@ pub fn get_trial_part(raw: LyricsData) -> Result<LyricsData, String>{
         if x.start_time > st + du {
             break;
         }
-        new_lines.push(
-            LineInfo { start_time: x.start_time - st, ..x }
-        );
+        new_lines.push(LineInfo { start_time: x.start_time - st, ..x });
     }
-    Ok(
-        LyricsData { lines: new_lines, ..raw }
-    )
+    Ok(LyricsData { lines: new_lines, ..raw })
 }
 
+// ===== LyricsProvider trait =====
 
+#[async_trait]
+trait LyricsProvider {
+    type Searcher: ISearcher;
+    type Api: Send + Sync;
+    type SearchResult: ISearchResult + 'static;
 
+    fn create_searcher(&self) -> Self::Searcher;
+    fn create_api(&self) -> Self::Api;
+    fn label() -> &'static str;
+    async fn fetch_and_parse(
+        api: &Self::Api,
+        best: &Self::SearchResult,
+    ) -> Result<Vec<LineInfo>, Box<dyn std::error::Error + Send + Sync>>;
+}
 
+// ===== 通用 fetch_lyrics =====
 
+async fn fetch_lyrics<P: LyricsProvider>(
+    provider: &P,
+    track: &dyn ITrackMetadata,
+) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
+    let searcher = provider.create_searcher();
+    let result = searcher
+        .search_for_result(track)
+        .await?
+        .ok_or_else(|| format!("{}: 未找到匹配的歌曲", P::label()))?;
 
+    let best = result
+        .as_any()
+        .downcast_ref::<P::SearchResult>()
+        .ok_or_else(|| format!("{}: 搜索结果类型不匹配", P::label()))?;
 
-//分发
+    let api = provider.create_api();
+    let lines = P::fetch_and_parse(&api, best).await?;
+
+    if lines.is_empty() {
+        return Err(format!("{}: 未获取到歌词内容", P::label()).into());
+    }
+
+    Ok(LyricsData {
+        file: None,
+        lines,
+        track_metadata: Some(TrackMetadata {
+            title: Some(best.title().to_string()),
+            artist: Some(best.artists().join(", ")),
+            album: Some(best.album().to_string()),
+            duration_ms: best.duration_ms(),
+            score: best.match_score(),
+            is_trial: best.trial().is_some(),
+            trial: best.trial(),
+            ..Default::default()
+        }),
+    })
+}
+
+// ===== 分发 =====
+
 async fn fetch_lyrics_from_player(
     player: &MusicPlayer,
-    track: &TrackMetadata,
+    track: &dyn ITrackMetadata,
 ) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
     match player {
-        MusicPlayer::Netease => fetch_netease_lyrics(track).await,
-        MusicPlayer::QQMusic => fetch_qqmusic_lyrics(track).await,
-        MusicPlayer::Kugou => fetch_kugou_lyrics(track).await,
-        MusicPlayer::SodaMusic => fetch_soda_music_lyrics(track).await,
-        MusicPlayer::AppleMusic => fetch_apple_music_lyrics(track).await,
-    }
-}
-
-// ===== 各播放器歌词获取实现 =====
-
-pub async fn fetch_netease_lyrics(
-    track: &TrackMetadata,
-) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
-    use crate::searchers::netease::NeteaseSearcher;
-    use crate::providers::netease::NeteaseApi;
-
-    let searcher = NeteaseSearcher::new();
-    let result = searcher.search_for_result(track).await?
-        .ok_or("网易云: 未找到匹配的歌曲")?;
-    let best = result.as_any()
-        .downcast_ref::<NeteaseSearchResult>()
-        .ok_or("网易云: 搜索结果类型不匹配")?;
-    let id = best.id.clone();
-
-    let api = NeteaseApi::new();
-    let lyric_result = api.get_lyric(&id).await?;
-    let mut data = LyricsData {
-        file: None,
-        lines: vec![],
-        track_metadata: 
-            Some(TrackMetadata {
-                title: Some(best.title.clone()),
-                artist: Some(best.artists.join(", ")),
-                album: Some(best.album.clone()),
-                duration_ms: best.duration_ms,
-                score: best.match_score,
-                is_trial: best.is_trial,
-                trial: best.trial,
-                ..Default::default()
-            }),
-    };
-    if let Some(yrc) = lyric_result.yrc.and_then(|y| y.lyric) {
-        if !yrc.is_empty() {
-            //println!("get yrc");
-            let parser = NeteaseParser {};
-            data.lines = parser.parse(yrc)?;
-            return Ok(data);
+        MusicPlayer::Netease => fetch_lyrics(&NeteaseProvider, track).await,
+        MusicPlayer::QQMusic => fetch_lyrics(&QQMusicProvider, track).await,
+        MusicPlayer::Kugou => fetch_lyrics(&KugouProvider, track).await,
+        MusicPlayer::SodaMusic => fetch_lyrics(&SodaMusicProvider, track).await,
+        MusicPlayer::AppleMusic => {
+            let token = TOKEN.lock().unwrap().clone();
+            fetch_lyrics(&AppleMusicProvider { token }, track).await
         }
     }
-    let lrc = lyric_result.lrc.ok_or("网易云: LRC也没有哟")?;
-    //println!("get lrc");
-    let parser = NeteaseLrcParser { 
-        version: lrc.version.unwrap_or(3) as u8,
-    };
-    data.lines = parser.parse(lrc.lyric.ok_or("网易云: LRC也没有哟")?)?;
-    if !data.lines.is_empty() {
-        return Ok(data);
-    }
-    Err("网易云: 未获取到歌词内容".into())
 }
 
+// ===== Provider 实现 =====
 
-pub async fn fetch_qqmusic_lyrics(
-    track: &TrackMetadata,
-) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
-    use crate::searchers::qqmusic::QQMusicSearcher;
-    use crate::providers::qqmusic::QQMusicApi;
-    let searcher = QQMusicSearcher::new();
-    let result = searcher.search_for_result(track).await?
-        .ok_or("QQ音乐: 未找到匹配的歌曲")?;
-    let best = result.as_any()
-        .downcast_ref::<QQMusicSearchResult>()
-        .ok_or("QQ音乐: 搜索结果类型不匹配")?;
-    let api = QQMusicApi::new();
-    let id = best.id;
-    let mut data = LyricsData {
-        file: None,
-        lines: vec![],
-        track_metadata: 
-            Some(TrackMetadata {
-                title: Some(best.title.clone()),
-                artist: Some(best.artists.join(", ")),
-                album: Some(best.album.clone()),
-                duration_ms: best.duration_ms,
-                score: best.match_score,
-                is_trial: best.is_trial,
-                trial: best.trial,
-                ..Default::default()
-            }),
-    };
-    if let Ok(qrc) = api.get_lyrics_qrc(&id.to_string()).await {
-        let parser = QQMusicParser {};
-        data.lines = parser.decrypt_and_parse(qrc)?;
-        return Ok(data);
-    }
-    let mid = best.mid.clone();
-    let lyric_result = api.get_lyric(&mid).await?
-        .ok_or("QQ音乐: 获取歌词失败")?;
-    if let Some(lrc) = lyric_result.lyric {
-        if !lrc.is_empty() {
-            let parser = QQMusicLrcParser {};
-            data.lines = parser.parse(lrc)?;
-            return Ok(data);
-        }
-    }
-    Err("QQ音乐: 未获取到歌词内容".into())
+struct NeteaseProvider;
+struct QQMusicProvider;
+struct KugouProvider;
+struct SodaMusicProvider;
+struct AppleMusicProvider {
+    token: String,
 }
 
+#[async_trait]
+impl LyricsProvider for NeteaseProvider {
+    type Searcher = crate::searchers::netease::NeteaseSearcher;
+    type Api = crate::providers::netease::NeteaseApi;
+    type SearchResult = crate::searchers::netease::NeteaseSearchResult;
 
-pub async fn fetch_kugou_lyrics(
-    track: &TrackMetadata,
-) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
-    use crate::searchers::kugou::KugouSearcher;
-    use crate::providers::kugou::KugouApi;
-
-    let searcher = KugouSearcher::new();
-    let result = searcher.search_for_result(track).await?
-        .ok_or("酷狗: 未找到匹配的歌曲")?;
-
-    let best = result.as_any()
-        .downcast_ref::<KugouSearchResult>()
-        .ok_or("酷狗: 搜索结果类型不匹配")?;
-
-    let api = KugouApi::new();
-    let keyword = format!("{} {}", best.title, best.artists.join(", "));
-
-    let lyrics_resp = api.get_search_lyrics(
-        Some(&keyword),
-        Some(&best.hash),
-    ).await?
-        .ok_or("酷狗: 获取歌词候选失败")?;
-
-    let candidates = lyrics_resp.candidates.unwrap_or_default();
-    let candidate = candidates.first().ok_or("酷狗: 无歌词候选")?;
-
-    let id = candidate.id.as_deref().ok_or("酷狗: 候选缺少 id")?;
-    let access_key = candidate.access_key.as_deref().ok_or("酷狗: 候选缺少 accesskey")?;
-
-    let dl_resp = api.get_download_krc(id, access_key).await?
-        .ok_or("酷狗: 下载 KRC 失败")?;
-
-    let krc = dl_resp.content.ok_or("酷狗: KRC 内容为空")?;
-    if krc.is_empty() {
-        return Err("酷狗: KRC 内容为空".into());
+    fn create_searcher(&self) -> Self::Searcher {
+        crate::searchers::netease::NeteaseSearcher::new()
     }
-    let parser = KugouParser {};
-    let data = LyricsData {
-        file: None,
-        lines: parser.decrypt_and_parse(krc)?,
-        track_metadata: 
-            Some(TrackMetadata {
-                title: Some(best.title.clone()),
-                artist: Some(best.artists.join(", ")),
-                album: Some(best.album.clone()),
-                duration_ms: best.duration_ms,
-                score: best.match_score,
-                is_trial: best.is_trial,
-                trial: best.trial,
-                ..Default::default()
-            }),
-    };
-
-    if data.lines.is_empty() {
-        return Err("酷狗: 解析歌词为空".into());
+    fn create_api(&self) -> Self::Api {
+        crate::providers::netease::NeteaseApi::new()
     }
-    Ok(data)
-}
+    fn label() -> &'static str {
+        "网易云"
+    }
 
-
-pub async fn fetch_soda_music_lyrics(
-    track: &TrackMetadata,
-) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
-    use crate::searchers::soda_music::SodaMusicSearcher;
-    use crate::providers::soda_music::SodaMusicApi;
-
-    let searcher = SodaMusicSearcher::new();
-    let result = match searcher.search_for_result(track).await {
-        Ok(Some(r)) => r,
-        Ok(None) => return Err("汽水音乐: 未找到匹配的歌曲".into()),
-        Err(e) => return Err(e),
-    };
-
-    let best = result
-        .as_any()
-        .downcast_ref::<SodaMusicSearchResult>()
-        .ok_or("汽水音乐: 搜索结果类型不匹配")?;
-
-    let id = best.id.clone();
-
-    let api = SodaMusicApi::new();
-    let detail = api.get_detail(&id).await?
-        .ok_or("汽水音乐: 获取歌曲详情失败")?;
-
-    if let Some(lyric_info) = detail.lyric {
-        if let Some(content) = lyric_info.content {
-            if !content.is_empty() {
-                let parser = SodaParser {};
-
-                let data = LyricsData {
-                    file: None,
-                    lines: parser.parse(content)?,
-                    track_metadata: 
-                        Some(TrackMetadata {
-                            title: Some(best.title.clone()),
-                            artist: Some(best.artists.join(", ")),
-                            album: Some(best.album.clone()),
-                            duration_ms: best.duration_ms,
-                            score: best.match_score,
-                            is_trial: best.is_trial,
-                            trial: best.trial,
-                            ..Default::default()
-                        }),
-                };
-
-                return Ok(data);
+    async fn fetch_and_parse(
+        api: &Self::Api,
+        best: &Self::SearchResult,
+    ) -> Result<Vec<LineInfo>, Box<dyn std::error::Error + Send + Sync>> {
+        use crate::parsers::netease::{NeteaseParser, NeteaseLrcParser};
+        use crate::parsers::IParsers;
+        use crate::parsers::lrc::LrcParser;
+        let lyric_result = api.get_lyric(&best.id).await?;
+        if let Some(yrc) = lyric_result.yrc.and_then(|y| y.lyric) {
+            if !yrc.is_empty() {
+                return Ok(NeteaseParser {}.parse(yrc)?);
             }
+        }
+        let lrc = lyric_result.lrc.ok_or("网易云: LRC也没有哟")?;
+        let parser = NeteaseLrcParser { version: lrc.version.unwrap_or(3) as u8 };
+        Ok(parser.parse(lrc.lyric.ok_or("网易云: LRC也没有哟")?)?)
+    }
+}
+
+#[async_trait]
+impl LyricsProvider for QQMusicProvider {
+    type Searcher = crate::searchers::qqmusic::QQMusicSearcher;
+    type Api = crate::providers::qqmusic::QQMusicApi;
+    type SearchResult = crate::searchers::qqmusic::QQMusicSearchResult;
+
+    fn create_searcher(&self) -> Self::Searcher {
+        crate::searchers::qqmusic::QQMusicSearcher::new()
+    }
+    fn create_api(&self) -> Self::Api {
+        crate::providers::qqmusic::QQMusicApi::new()
+    }
+    fn label() -> &'static str {
+        "QQ音乐"
+    }
+
+    async fn fetch_and_parse(
+        api: &Self::Api,
+        best: &Self::SearchResult,
+    ) -> Result<Vec<LineInfo>, Box<dyn std::error::Error + Send + Sync>> {
+        use crate::parsers::qqmusic::{QQMusicParser, QQMusicLrcParser};
+        use crate::parsers::lrc::LrcParser;
+        if let Ok(qrc) = api.get_lyrics_qrc(&best.id.to_string()).await {
+            return Ok(QQMusicParser {}.decrypt_and_parse(qrc)?);
+        }
+        let lyric_result = api
+            .get_lyric(&best.mid)
+            .await?
+            .ok_or("QQ音乐: 获取歌词失败")?;
+        if let Some(lrc) = lyric_result.lyric {
+            if !lrc.is_empty() {
+                return Ok(QQMusicLrcParser {}.parse(lrc)?);
+            }
+        }
+        Err("QQ音乐: 未获取到歌词内容".into())
+    }
+}
+
+#[async_trait]
+impl LyricsProvider for KugouProvider {
+    type Searcher = crate::searchers::kugou::KugouSearcher;
+    type Api = crate::providers::kugou::KugouApi;
+    type SearchResult = crate::searchers::kugou::KugouSearchResult;
+
+    fn create_searcher(&self) -> Self::Searcher {
+        crate::searchers::kugou::KugouSearcher::new()
+    }
+    fn create_api(&self) -> Self::Api {
+        crate::providers::kugou::KugouApi::new()
+    }
+    fn label() -> &'static str {
+        "酷狗"
+    }
+
+    async fn fetch_and_parse(
+        api: &Self::Api,
+        best: &Self::SearchResult,
+    ) -> Result<Vec<LineInfo>, Box<dyn std::error::Error + Send + Sync>> {
+        use crate::parsers::kugou::KugouParser;
+        let keyword = format!("{} {}", best.title, best.artists.join(", "));
+        let lyrics_resp = api
+            .get_search_lyrics(Some(&keyword), Some(&best.hash))
+            .await?
+            .ok_or("酷狗: 获取歌词候选失败")?;
+        let candidates = lyrics_resp.candidates.unwrap_or_default();
+        let candidate = candidates.first().ok_or("酷狗: 无歌词候选")?;
+        let id = candidate.id.as_deref().ok_or("酷狗: 候选缺少 id")?;
+        let access_key = candidate.access_key.as_deref().ok_or("酷狗: 候选缺少 accesskey")?;
+        let dl_resp = api
+            .get_download_krc(id, access_key)
+            .await?
+            .ok_or("酷狗: 下载 KRC 失败")?;
+        let krc = dl_resp.content.ok_or("酷狗: KRC 内容为空")?;
+        if krc.is_empty() {
+            return Err("酷狗: KRC 内容为空".into());
+        }
+        Ok(KugouParser {}.decrypt_and_parse(krc)?)
+    }
+}
+
+#[async_trait]
+impl LyricsProvider for SodaMusicProvider {
+    type Searcher = crate::searchers::soda_music::SodaMusicSearcher;
+    type Api = crate::providers::soda_music::SodaMusicApi;
+    type SearchResult = crate::searchers::soda_music::SodaMusicSearchResult;
+
+    fn create_searcher(&self) -> Self::Searcher {
+        crate::searchers::soda_music::SodaMusicSearcher::new()
+    }
+    fn create_api(&self) -> Self::Api {
+        crate::providers::soda_music::SodaMusicApi::new()
+    }
+    fn label() -> &'static str {
+        "汽水音乐"
+    }
+
+    async fn fetch_and_parse(
+        api: &Self::Api,
+        best: &Self::SearchResult,
+    ) -> Result<Vec<LineInfo>, Box<dyn std::error::Error + Send + Sync>> {
+        use crate::parsers::soda_music::SodaParser;
+        use crate::parsers::IParsers;
+        let detail = api
+            .get_detail(&best.id)
+            .await?
+            .ok_or("汽水音乐: 获取歌曲详情失败")?;
+        let lyric_info = detail.lyric.ok_or("汽水音乐: 歌曲没有歌词")?;
+        let content = lyric_info.content.ok_or("汽水音乐: 无歌曲详细信息")?;
+        if content.is_empty() {
             return Err("汽水音乐: 歌词内容为空".into());
         }
-        return Err("汽水音乐: 无歌曲详细信息".into());
+        Ok(SodaParser {}.parse(content)?)
     }
-    Err("汽水音乐: 歌曲没有歌词".into())
 }
 
+#[async_trait]
+impl LyricsProvider for AppleMusicProvider {
+    type Searcher = crate::searchers::applemusic::ApplemusicSearcher;
+    type Api = crate::providers::applemusic::ApplemusicApi;
+    type SearchResult = crate::searchers::applemusic::ApplemusicSearchResult;
 
-pub async fn fetch_apple_music_lyrics(
-    track: &TrackMetadata,
-) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
-    use crate::searchers::applemusic::ApplemusicSearcher;
-    use crate::providers::applemusic::ApplemusicApi;
-    let token = TOKEN.lock().unwrap().as_str().to_string();
-    let searcher = ApplemusicSearcher::new(token.clone());
-    let result = match searcher.search_for_result(track).await {
-        Ok(Some(r)) => r,
-        Ok(None) => return Err("applemusic: 未找到匹配的歌曲".into()),
-        Err(e) => return Err(e),
-    };
+    fn create_searcher(&self) -> Self::Searcher {
+        crate::searchers::applemusic::ApplemusicSearcher::new(self.token.clone())
+    }
+    fn create_api(&self) -> Self::Api {
+        crate::providers::applemusic::ApplemusicApi::new(self.token.clone())
+    }
+    fn label() -> &'static str {
+        "applemusic"
+    }
 
-    let best = result
-        .as_any()
-        .downcast_ref::<ApplemusicSearchResult>()
-        .ok_or("applemusic: 搜索结果类型不匹配")?;
-
-    let id = best.id.clone();
-
-    let api = ApplemusicApi::new(token);
-    let detail = api.get_lyric(&id).await?
-        .ok_or("applemusic: 获取歌曲详情失败")?;
-
-    if let Some(lyric_data) = detail.data {
+    async fn fetch_and_parse(
+        api: &Self::Api,
+        best: &Self::SearchResult,
+    ) -> Result<Vec<LineInfo>, Box<dyn std::error::Error + Send + Sync>> {
+        use crate::parsers::applemusic::AppleMusicParser;
+        let detail = api
+            .get_lyric(&best.id)
+            .await?
+            .ok_or("applemusic: 获取歌曲详情失败")?;
+        let lyric_data = detail.data.ok_or("applemusic: 歌曲没有歌词")?;
         let u = lyric_data.get(0).unwrap();
-        if let Some(att) = &u.attributes {
-            if let Some(lyrics) = &att.ttml_localizations{
-                if !lyrics.is_empty() {
-                    let parser = AppleMusicParser {};
-
-                    let data = LyricsData {
-                        file: None,
-                        lines: parser.parse(lyrics.to_string())?,
-                        track_metadata: 
-                            Some(TrackMetadata {
-                                title: Some(best.title.clone()),
-                                artist: Some(best.artists.join(", ")),
-                                album: Some(best.album.clone()),
-                                duration_ms: best.duration_ms,
-                                score: best.match_score,
-                                is_trial: false,
-                                trial: None,
-                                ..Default::default()
-                            }),
-                    };
-                    return Ok(data);
-                }
-            }
-        
+        let att = u.attributes.as_ref().ok_or("applemusic: 无歌曲详细信息")?;
+        let lyrics = att
+            .ttml_localizations
+            .as_ref()
+            .ok_or("applemusic: 歌词内容为空")?;
+        if lyrics.is_empty() {
             return Err("applemusic: 歌词内容为空".into());
         }
-        return Err("applemusic: 无歌曲详细信息".into());
+        Ok(AppleMusicParser {}.parse(lyrics.to_string())?)
     }
-    Err("applemusic: 歌曲没有歌词".into())
-
 }
