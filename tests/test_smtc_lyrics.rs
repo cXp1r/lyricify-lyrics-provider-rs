@@ -117,12 +117,21 @@ async fn test_interactive() {
         (title, artist, album, String::new(), duration_ms)
     };
 
-    // 3. Session
+    let mut applemusic_token = None;
+    let mut spotify_cookie = None;
+    //json在外面你气不气
+    if let Ok(content) = std::fs::read_to_string("../auth.json") {
+        
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+            applemusic_token = json.get("applemusic_token").and_then(|v| v.as_str().map(String::from));
+            spotify_cookie = json.get("spotify_cookie").and_then(|v| v.as_str().map(String::from));
+        }
+    }
     let mut session = Session {
-        applemusic_token: None,
-        spotify_cookie: None,
+        applemusic_token,
+        spotify_cookie,
     };
-    if player == MusicPlayer::AppleMusic {
+    if player == MusicPlayer::AppleMusic && session.applemusic_token.is_none() {
         let token: String = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("Apple Music token")
             .interact_text()
@@ -134,7 +143,6 @@ async fn test_interactive() {
     let album_opt = (!album.is_empty()).then_some(album.as_str());
     let album_artist_opt = (!album_artist.is_empty()).then_some(album_artist.as_str());
 
-    // 4. 调用
     let result = get_lyrics_with_player(
         &player,
         &title,
