@@ -27,35 +27,30 @@ impl ISearcher for NeteaseSearcher {
         let result = self.api.search(search_string, 1).await?;
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();
 
-        if let Some(data) = result.result {
-            if let Some(songs) = data.songs {
-                for song in songs {
-                    let title = song.name.unwrap_or_default();
-                    let artists: Vec<String> = song.artists
-                        .unwrap_or_default()
-                        .iter()
-                        .filter_map(|a| a.name.clone())
-                        .collect();
-                    let album = song.album.as_ref().and_then(|a| a.name.clone()).unwrap_or_default();
-                    let duration = song.duration.map(|d| d as u32);
-                    let id = match &song.id {
-                        Some(serde_json::Value::Number(n)) => n.to_string(),
-                        Some(serde_json::Value::String(s)) => s.clone(),
-                        _ => String::new(),
-                    };
-                    let trial = {
-                        if let Some(trial) = self.api.get_detail(&id).await? {
-                            if let Some(data) = trial.data {
-                                if let Some(data) = data.get(0) {
-                                    if let Some(info) = &data.free_trial_info {
-                                        if let (Some(s), Some(e)) = (info.start, info.end) {
-                                            Some([s as u32 * 1000, (e - s) as u32 * 1000])
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    }
+        let data = result.result.ok_or_else(|| "Netease: result is None")?;
+        let songs = data.songs.ok_or_else(|| "Netease: songs is None")?;
+
+        for song in songs {
+            let title = song.name.unwrap_or_default();
+            let artists: Vec<String> = song.artists
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|a| a.name.clone())
+                .collect();
+            let album = song.album.as_ref().and_then(|a| a.name.clone()).unwrap_or_default();
+            let duration = song.duration.map(|d| d as u32);
+            let id = match &song.id {
+                Some(serde_json::Value::Number(n)) => n.to_string(),
+                Some(serde_json::Value::String(s)) => s.clone(),
+                _ => String::new(),
+            };
+            let trial = {
+                if let Some(trial) = self.api.get_detail(&id).await? {
+                    if let Some(data) = trial.data {
+                        if let Some(data) = data.get(0) {
+                            if let Some(info) = &data.free_trial_info {
+                                if let (Some(s), Some(e)) = (info.start, info.end) {
+                                    Some([s as u32 * 1000, (e - s) as u32 * 1000])
                                 } else {
                                     None
                                 }
@@ -65,20 +60,24 @@ impl ISearcher for NeteaseSearcher {
                         } else {
                             None
                         }
-                    };
-                    
-                    results.push(Box::new(NeteaseSearchResult {
-                        id,
-                        title,
-                        artists,
-                        album,
-                        duration_ms: duration,
-                        match_score: 0,
-                        trial,
-                        is_trial: false,
-                    }));
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 }
-            }
+            };
+
+            results.push(Box::new(NeteaseSearchResult {
+                id,
+                title,
+                artists,
+                album,
+                duration_ms: duration,
+                match_score: 0,
+                trial,
+                is_trial: false,
+            }));
         }
 
         Ok(results)

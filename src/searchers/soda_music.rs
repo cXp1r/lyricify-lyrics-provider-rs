@@ -28,52 +28,49 @@ impl ISearcher for SodaMusicSearcher {
         let result = self.api.search(search_string).await?;
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();
 
-        if let Some(resp) = result {
-            if let Some(groups) = resp.result_groups {
-                for group in groups {
-                    if let Some(items) = group.data {
-                        for item in items {
-                            if let Some(entity) = item.entity {
-                                if let Some(track) = entity.track {
-                                    let title = track.name.unwrap_or_default();
-                                    let artists: Vec<String> = track.artists
-                                        .unwrap_or_default()
-                                        .iter()
-                                        .filter_map(|a| a.name.clone())
-                                        .collect();
-                                    let album = track.album.as_ref().and_then(|a| a.name.clone()).unwrap_or_default();
-                                    let duration = track.duration.map(|d| d as u32);
-                                    let id = track.id.unwrap_or_default();
-                                    let trial = {
-                                        if let Some(preview) = track.preview {
-                                            if let Some(d) = preview.duration {
-                                                if let Some(s) = preview.start {
-                                                    Some([s, d])
-                                                } else {
-                                                    Some([0, d])
-                                                }
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            None
-                                        }
-                                    };
-                                    results.push(Box::new(SodaMusicSearchResult {
-                                        id,
-                                        title,
-                                        artists,
-                                        album,
-                                        duration_ms: duration,
-                                        match_score: 0,
-                                        trial,
-                                        is_trial: false,
-                                    }));
-                                }
+        let resp = result.ok_or_else(|| "SodaMusic: resp is None")?;
+        let groups = resp.result_groups.ok_or_else(|| "SodaMusic: result_groups is None")?;
+
+        for group in groups {
+            let Some(items) = group.data else { continue };
+            for item in items {
+                let Some(entity) = item.entity else { continue };
+                let Some(track) = entity.track else { continue };
+
+                let title = track.name.unwrap_or_default();
+                let artists: Vec<String> = track.artists
+                    .unwrap_or_default()
+                    .iter()
+                    .filter_map(|a| a.name.clone())
+                    .collect();
+                let album = track.album.as_ref().and_then(|a| a.name.clone()).unwrap_or_default();
+                let duration = track.duration.map(|d| d as u32);
+                let id = track.id.unwrap_or_default();
+                let trial = {
+                    if let Some(preview) = track.preview {
+                        if let Some(d) = preview.duration {
+                            if let Some(s) = preview.start {
+                                Some([s, d])
+                            } else {
+                                Some([0, d])
                             }
+                        } else {
+                            None
                         }
+                    } else {
+                        None
                     }
-                }
+                };
+                results.push(Box::new(SodaMusicSearchResult {
+                    id,
+                    title,
+                    artists,
+                    album,
+                    duration_ms: duration,
+                    match_score: 0,
+                    trial,
+                    is_trial: false,
+                }));
             }
         }
 

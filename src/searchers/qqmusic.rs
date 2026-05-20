@@ -26,58 +26,52 @@ impl ISearcher for QQMusicSearcher {
 
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
         let result = self.api.search(search_string).await?;
-        
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();
-        if let Some(resp) = result{
-            if let Some(req1) = resp.req_1 {
-                if let Some(data) = req1.data {
-                    if let Some(body) = data.body {
-                        if let Some(song_list) = body.song {
-                            if let Some(songs) = song_list.list {
-                                for song in songs {
-                                    let title = song.name.or(song.title).unwrap_or_default();
-                                    let artists: Vec<String> = song.singer
-                                        .unwrap_or_default()
-                                        .iter()
-                                        .filter_map(|s| s.name.clone())
-                                        .collect();
-                                    let album = song.album.as_ref().and_then(|a| a.name.clone()).unwrap_or_default();
-                                    let duration = song.interval.map(|i| (i * 1000) as u32);
-                                    let mid = song.mid.unwrap_or_default();
-                                    let id  = song.id.unwrap_or_default();
-                                    let trial = if let Some(file) = song.file {
-                                        if let (Some(b), Some(e)) = (file.b_30s, file.e_30s) {
-                                            Some([b, e - b])
-                                        } else {
-                                            None
-                                        }
-                                    } else {
-                                        None
-                                    };
-                                    results.push(Box::new(QQMusicSearchResult {
-                                        id,
-                                        mid,
-                                        title,
-                                        artists,
-                                        album,
-                                        duration_ms: duration,
-                                        match_score: 0,
-                                        trial,
-                                        is_trial: false,
-                                    }));
-                                }
-                                return Ok(results);
-                            }
-                        }
-                        return Err("QQMusicApi: No song".into());
-                    }
-                    return Err("QQMusicApi: No body".into());
+
+        let resp = result.ok_or_else(|| "QQMusic: resp is None")?;
+        let req1 = resp.req_1.ok_or_else(|| "QQMusic: req_1 is None")?;
+        let data = req1.data.ok_or_else(|| "QQMusic: data is None")?;
+        let body = data.body.ok_or_else(|| "QQMusic: body is None")?;
+        let song_list = body.song.ok_or_else(|| "QQMusic: song is None")?;
+        let songs = song_list.list.ok_or_else(|| "QQMusic: list is None")?;
+
+        for song in songs {
+            let title = song.name.or(song.title).unwrap_or_default();
+            let artists: Vec<String> = song.singer
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|s| s.name.clone())
+                .collect();
+            let album = song.album.as_ref().and_then(|a| a.name.clone()).unwrap_or_default();
+            let duration = song.interval.map(|i| (i * 1000) as u32);
+            let mid = song.mid.unwrap_or_default();
+            let id  = song.id.unwrap_or_default();
+            let trial = if let Some(file) = song.file {
+                if let (Some(b), Some(e)) = (file.b_30s, file.e_30s) {
+                    Some([b, e - b])
+                } else {
+                    None
                 }
-                return Err("QQMusicApi: No data".into());
-            }
-            return Err("QQMusicApi: No req_1".into());      
+            } else {
+                None
+            };
+            results.push(Box::new(QQMusicSearchResult {
+                id,
+                mid,
+                title,
+                artists,
+                album,
+                duration_ms: duration,
+                match_score: 0,
+                trial,
+                is_trial: false,
+            }));
         }
-        return Err("QQMusicApi: No resp".into());
+
+        if results.is_empty() {
+            return Err("QQMusic: No songs".into());
+        }
+        Ok(results)
     }
     fn get_split_char(&self) -> char {
         '/'

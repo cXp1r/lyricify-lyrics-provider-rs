@@ -26,50 +26,44 @@ impl ISearcher for SpotifySearcher {
 
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
         let result = self.api.search(search_string).await?;
-        
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();
-        if let Some(resp) = result{
-            if let Some(data) = resp.data {
-                if let Some(search_v2) = data.search_v2 {
-                    if let Some(top) = search_v2.top_results_v2{
-                        if let Some(items) = top.items_v2 {
-                            for song in items {
-                                let Some(i) = song.item else { continue };
-                                let Some(t) = i.data else { continue };
-                                // 跳过非曲目条目（如播放列表），它们缺少 id
-                                let Some(id) = t.id else { continue };
-                                let Some(title) = t.name else { continue };
-                                let Some(album) = t.album_of_track else { continue };
-                                let Some(album_name) = album.name else { continue };
-                                let Some(artist) = t.artists else { continue };
-                                let Some(artist_items) = artist.items else { continue };
-                                let artists: Vec<String> = artist_items
-                                    .iter()
-                                    .filter_map(|s| s.profile.as_ref()?.name.clone())
-                                    .collect();
-                                let duration_ms = t.duration.and_then(|d| d.total_milliseconds);
-                                results.push(Box::new(SpotifySearchResult{
-                                    id,
-                                    title,
-                                    artists,
-                                    album: album_name,
-                                    duration_ms,
-                                    trial: None,
-                                    is_trial: false,
-                                    match_score: 0,
-                                }));
-                            }
-                        }
-                        if !results.is_empty() {
-                            return Ok(results);
-                        }
-                    }
-                }
-                return Err("Spotify: No data".into());
-            }
-            return Err("Spotify: No req_1".into());
+
+        let resp = result.ok_or_else(|| "Spotify: resp is None")?;
+        let data = resp.data.ok_or_else(|| "Spotify: data is None")?;
+        let search_v2 = data.search_v2.ok_or_else(|| "Spotify: search_v2 is None")?;
+        let top = search_v2.top_results_v2.ok_or_else(|| "Spotify: top_results_v2 is None")?;
+        let items = top.items_v2.ok_or_else(|| "Spotify: items_v2 is None")?;
+
+        for song in items {
+            let Some(i) = song.item else { continue };
+            let Some(t) = i.data else { continue };
+            let Some(id) = t.id else { continue };
+            let Some(title) = t.name else { continue };
+            let Some(album) = t.album_of_track else { continue };
+            let Some(album_name) = album.name else { continue };
+            let Some(artist) = t.artists else { continue };
+            let Some(artist_items) = artist.items else { continue };
+            let artists: Vec<String> = artist_items
+                .iter()
+                .filter_map(|s| s.profile.as_ref()?.name.clone())
+                .collect();
+            let duration_ms = t.duration.and_then(|d| d.total_milliseconds);
+            results.push(Box::new(SpotifySearchResult{
+                id,
+                title,
+                artists,
+                album: album_name,
+                duration_ms,
+                trial: None,
+                is_trial: false,
+                match_score: 0,
+            }));
         }
-        return Err("Spotify: No resp".into());
+
+        if results.is_empty() {
+            return Err("Spotify: No valid tracks".into());
+        }
+        Ok(results)
     }
     fn get_split_char(&self) -> char {
         '/'

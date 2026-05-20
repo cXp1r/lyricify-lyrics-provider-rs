@@ -28,33 +28,31 @@ impl ISearcher for KugouSearcher {
         let result = self.api.get_search_song(search_string).await?;
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();
 
-        if let Some(resp) = result {
-            if let Some(data) = resp.data {
-                if let Some(info_list) = data.info {
-                    for info in info_list {
-                        let title = info.song_name.clone().unwrap_or_default();
-                        let singer = info.singer_name.clone().unwrap_or_default();
-                        let artists: Vec<String> = singer.split('、')//酷狗用中文顿号分词
-                            .map(|s| s.trim().to_string())
-                            .filter(|s| !s.is_empty())
-                            .collect();
-                        let album = info.album_name.clone().unwrap_or_default();
-                        let duration = info.duration.map(|d| (d * 1000) as u32);
-                        let hash = info.hash.clone().unwrap_or_default();
+        let resp = result.ok_or_else(|| "Kugou: resp is None")?;
+        let data = resp.data.ok_or_else(|| "Kugou: data is None")?;
+        let info_list = data.info.ok_or_else(|| "Kugou: info is None")?;
 
-                        results.push(Box::new(KugouSearchResult {
-                            hash,
-                            title,
-                            artists,
-                            album,
-                            duration_ms: duration,
-                            match_score: 0,
-                            trial: None,//没有适配的义务
-                            is_trial: false,
-                        }));
-                    }
-                }
-            }
+        for info in info_list {
+            let title = info.song_name.clone().unwrap_or_default();
+            let singer = info.singer_name.clone().unwrap_or_default();
+            let artists: Vec<String> = singer.split('、')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let album = info.album_name.clone().unwrap_or_default();
+            let duration = info.duration.map(|d| (d * 1000) as u32);
+            let hash = info.hash.clone().unwrap_or_default();
+
+            results.push(Box::new(KugouSearchResult {
+                hash,
+                title,
+                artists,
+                album,
+                duration_ms: duration,
+                match_score: 0,
+                trial: None,
+                is_trial: false,
+            }));
         }
 
         Ok(results)
