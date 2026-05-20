@@ -22,49 +22,50 @@ impl Default for ApplemusicSearcher {
 //duration只能api拿了
 #[async_trait]
 impl ISearcher for ApplemusicSearcher {
-    fn name(&self) -> &str { "Kugou" }
-    fn display_name(&self) -> &str { "Kugou Music" }
+    fn name(&self) -> &str { "Applemusic" }
+    fn display_name(&self) -> &str { "Applemusic" }
     fn searcher_type(&self) -> SearcherType { SearcherType::Kugou }
 
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
         let result = self.api.search(search_string).await?;
+        println!("{result:?}");
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();
-
-        if let Some(resp) = result {
-            if let Some(res) = resp.results {
-                if let Some(songs) = res.songs {
-                    if let Some(songsv) = songs.data{
-                        for song in songsv {
-                            let id = song.id.clone().unwrap_or_default();
-                            if let Some(info) = song.attributes{
-                                
-                                let title = info.name.clone().unwrap_or_default();
-                                let singer = info.artist_name.clone().unwrap_or_default();
-                                let artists: Vec<String> = singer.split('、')//中文区顿号
-                                    .map(|s| s.trim().to_string())
-                                    .filter(|s| !s.is_empty())
-                                    .collect();
-                                let album = info.album_name.clone().unwrap_or_default();
-                                let duration = info.duration_in_millis.map(|d| (d * 1000) as u32);
-                                let has_lyrics = info.has_lyrics.clone().unwrap_or(false);
-                                results.push(Box::new(ApplemusicSearchResult {
-                                    id,
-                                    title,
-                                    artists,
-                                    album,
-                                    duration_ms: duration,
-                                    has_lyrics,
-                                    match_score: 0,
-                                }));
-                            }
-                        }
-                    }
-                    
-                }
-            }
+        let resp = result
+            .ok_or_else(|| "AppleMusic: result is None".to_string())?;
+        let res = resp.results
+            .ok_or_else(|| "AppleMusic: results is None".to_string())?;
+        let songs = res.songs
+            .ok_or_else(|| "AppleMusic: songs is None".to_string())?;
+        let songsv = songs.data
+            .ok_or_else(|| "AppleMusic: songs.data is None".to_string())?;
+        for song in songsv {
+            let id = song.id.clone().unwrap_or_default();
+            let info = song.attributes
+                .ok_or_else(|| format!("AppleMusic: attributes is None ({})", id))?;
+            let title = info.name.clone().unwrap_or_default();
+            let singer = info.artist_name.clone().unwrap_or_default();
+            let artists: Vec<String> = singer
+                .split('、')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            let album = info.album_name.clone().unwrap_or_default();
+            let duration =
+                info.duration_in_millis.map(|d| (d * 1000) as u32);
+            let has_lyrics =
+                info.has_lyrics.unwrap_or(false);
+            results.push(Box::new(ApplemusicSearchResult {
+                id,
+                title,
+                artists,
+                album,
+                duration_ms: duration,
+                has_lyrics,
+                match_score: 0,
+            }));
         }
-
         Ok(results)
+        
     }
     async fn make_search_string(&self, track: &dyn ITrackMetadata) -> Option<String> {
         let combined = format!(
