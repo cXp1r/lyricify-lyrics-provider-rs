@@ -15,6 +15,7 @@ pub enum MusicPlayer {
     Netease,
     QQMusic,
     SodaMusic,
+    Spotify,
     AppleMusic,
 }
 
@@ -25,6 +26,7 @@ impl MusicPlayer {
             MusicPlayer::Netease => "网易云音乐",
             MusicPlayer::QQMusic => "QQ音乐",
             MusicPlayer::SodaMusic => "汽水音乐",
+            MusicPlayer::Spotify => "Spotify",
             MusicPlayer::AppleMusic => "AppleMusic",
         }
     }
@@ -36,6 +38,7 @@ impl MusicPlayer {
             MusicPlayer::QQMusic,
             MusicPlayer::SodaMusic,
             MusicPlayer::AppleMusic,
+            MusicPlayer::Spotify,
         ]
     }
 }
@@ -47,6 +50,7 @@ pub fn id2player(app_id: &str) -> Result<MusicPlayer, String> {
         "kugou" => MusicPlayer::Kugou,
         "\u{6c7d}\u{6c34}\u{97f3}\u{4e50}" => MusicPlayer::SodaMusic,
         "AppleInc.AppleMusicWin_nzyj5cx40ttqa!App" => MusicPlayer::AppleMusic,
+        "Spotify.exe" => MusicPlayer::Spotify,
         _ => return Err(format!("Unsupported appid: {}", app_id)),
     })
 }
@@ -182,6 +186,14 @@ async fn fetch_lyrics_from_player(
         MusicPlayer::QQMusic => fetch_lyrics(&QQMusicProvider, track).await,
         MusicPlayer::Kugou => fetch_lyrics(&KugouProvider, track).await,
         MusicPlayer::SodaMusic => fetch_lyrics(&SodaMusicProvider, track).await,
+        MusicPlayer::Spotify => {
+            let cookie = session
+                .spotify_cookie
+                .as_ref()
+                .ok_or("Spotify token not set")?
+                .clone();
+            fetch_lyrics(&SpotifyProvider { cookie }, track).await
+        },
         MusicPlayer::AppleMusic => {
             let token = session
                 .applemusic_token
@@ -190,6 +202,7 @@ async fn fetch_lyrics_from_player(
                 .clone();
             fetch_lyrics(&AppleMusicProvider { token }, track).await
         }
+
     }
 }
 
@@ -201,6 +214,9 @@ struct KugouProvider;
 struct SodaMusicProvider;
 struct AppleMusicProvider {
     token: String,
+}
+struct SpotifyProvider {
+    cookie: String,
 }
 
 #[async_trait]
@@ -318,6 +334,37 @@ impl LyricsProvider for KugouProvider {
     }
 }
 
+#[async_trait]
+impl LyricsProvider for SpotifyProvider {
+    type Searcher = crate::searchers::spotify::SpotifySearcher;
+    type Api = crate::providers::spotify::SpotifyApi;
+    type SearchResult = crate::searchers::spotify::SpotifySearchResult;
+
+    fn create_searcher(&self) -> Self::Searcher {
+        crate::searchers::spotify::SpotifySearcher::new(self.cookie.clone())
+    }
+    fn create_api(&self) -> Self::Api {
+        crate::providers::spotify::SpotifyApi::new(self.cookie.clone())
+    }
+    fn label() -> &'static str {
+        "汽水音乐"
+    }
+
+    async fn fetch_and_parse(
+        api: &Self::Api,
+        best: &Self::SearchResult,
+    ) -> Result<Vec<LineInfo>, Box<dyn std::error::Error + Send + Sync>> {
+        use crate::parsers::spotify::SpotifyParser;
+        let lryics = api
+            .get_lyrics(&best.id)
+            .await?
+            .ok_or("汽水音乐: 获取歌曲详情失败")?;
+        if lryics.is_empty() {
+            return Err("汽水音乐: 歌词内容为空".into());
+        }
+        Ok(SpotifyParser {}.parse(lryics)?)
+    }
+}
 #[async_trait]
 impl LyricsProvider for SodaMusicProvider {
     type Searcher = crate::searchers::soda_music::SodaMusicSearcher;

@@ -8,11 +8,12 @@
 - memchr予以的超高性能，无需预热或优化即可实现1ms一下解析
 
 ## 计划(按优先级排序)
-
-- [ ] Spotify totp逆向(已完成, 待接入)
+- [ ] Spotify逐行测试
+- [ ] Spotify逐字同步部分
 - [ ] 洛雪音乐
 - [ ] AppleMusic 实装测试
 ## 已完成
+- [x] Spotify totp逆向(已完成, 待接入)
 - [x] 汽水音乐试用区间测试
 - [x] 试听音乐区间捕获
 - [x] AppleMusic 逐字解析
@@ -33,7 +34,7 @@ cargo add lyrix
 在 `Cargo.toml` 中添加：
 ```toml
 [dependencies]
-lyrix = { version = "26.4.7" }
+lyrix = { version = "26.4.6" }
 tokio = { version = "1", features = ["full"] }
 ```
 

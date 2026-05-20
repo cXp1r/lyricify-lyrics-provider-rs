@@ -2,6 +2,7 @@ pub mod netease;
 pub mod qqmusic;
 pub mod kugou;
 pub mod soda_music;
+pub mod spotify;
 pub mod applemusic;
 use async_trait::async_trait;
 use crate::models::ITrackMetadata;
@@ -15,6 +16,7 @@ pub enum SearcherType {
     QQMusic,
     Kugou,
     SodaMusic,
+    Spotify,
 }
 
 /// 搜索结果 trait

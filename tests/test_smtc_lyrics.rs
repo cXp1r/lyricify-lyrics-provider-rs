@@ -8,6 +8,7 @@ const APP_IDS: &[(&str, MusicPlayer)] = &[
     ("kugou",                                         MusicPlayer::Kugou),
     ("\u{6c7d}\u{6c34}\u{97f3}\u{4e50}",              MusicPlayer::SodaMusic),
     ("AppleInc.AppleMusicWin_nzyj5cx40ttqa!App",      MusicPlayer::AppleMusic),
+    ("Spotify.exe",      MusicPlayer::Spotify),
 ];
 
 fn split_char(player: MusicPlayer) -> &'static str {
@@ -16,6 +17,7 @@ fn split_char(player: MusicPlayer) -> &'static str {
         MusicPlayer::Netease | MusicPlayer::QQMusic => "/",
         MusicPlayer::SodaMusic => ",",
         MusicPlayer::AppleMusic => " ",
+        MusicPlayer::Spotify => " ",//实则只给第一个艺人
     }
 }
 

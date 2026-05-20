@@ -2,9 +2,11 @@ pub mod applemusic;
 pub mod qqmusic;
 pub mod netease;
 pub mod soda_music;
+pub mod spotify;
 pub mod kugou;
 pub mod lrc;
 pub mod decrypt;
+pub mod generate;
 use memchr::memchr;
 use crate::models::*;
 ///逐字歌词解析器
