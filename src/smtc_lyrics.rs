@@ -127,8 +127,8 @@ trait LyricsProvider {
     type Api: Send + Sync;
     type SearchResult: ISearchResult + 'static;
 
-    fn create_searcher(&self) -> Self::Searcher;
-    fn create_api(&self) -> Self::Api;
+    async fn create_searcher(&self) -> Self::Searcher;
+    async fn create_api(&self) -> Self::Api;
     fn label() -> &'static str;
     async fn fetch_and_parse(
         api: &Self::Api,
@@ -141,7 +141,7 @@ async fn fetch_lyrics<P: LyricsProvider>(
     provider: &P,
     track: &dyn ITrackMetadata,
 ) -> Result<LyricsData, Box<dyn std::error::Error + Send + Sync>> {
-    let searcher = provider.create_searcher();
+    let searcher = provider.create_searcher().await;
     let result = searcher
         .search_for_result(track)
         .await?
@@ -152,7 +152,7 @@ async fn fetch_lyrics<P: LyricsProvider>(
         .downcast_ref::<P::SearchResult>()
         .ok_or_else(|| format!("{}: 搜索结果类型不匹配", P::label()))?;
 
-    let api = provider.create_api();
+    let api = provider.create_api().await;
     let lines = P::fetch_and_parse(&api, best).await?;
 
     if lines.is_empty() {
@@ -225,10 +225,10 @@ impl LyricsProvider for NeteaseProvider {
     type Api = crate::providers::netease::NeteaseApi;
     type SearchResult = crate::searchers::netease::NeteaseSearchResult;
 
-    fn create_searcher(&self) -> Self::Searcher {
+    async fn create_searcher(&self) -> Self::Searcher {
         crate::searchers::netease::NeteaseSearcher::new()
     }
-    fn create_api(&self) -> Self::Api {
+    async fn create_api(&self) -> Self::Api {
         crate::providers::netease::NeteaseApi::new()
     }
     fn label() -> &'static str {
@@ -260,10 +260,10 @@ impl LyricsProvider for QQMusicProvider {
     type Api = crate::providers::qqmusic::QQMusicApi;
     type SearchResult = crate::searchers::qqmusic::QQMusicSearchResult;
 
-    fn create_searcher(&self) -> Self::Searcher {
+    async fn create_searcher(&self) -> Self::Searcher {
         crate::searchers::qqmusic::QQMusicSearcher::new()
     }
-    fn create_api(&self) -> Self::Api {
+    async fn create_api(&self) -> Self::Api {
         crate::providers::qqmusic::QQMusicApi::new()
     }
     fn label() -> &'static str {
@@ -298,10 +298,10 @@ impl LyricsProvider for KugouProvider {
     type Api = crate::providers::kugou::KugouApi;
     type SearchResult = crate::searchers::kugou::KugouSearchResult;
 
-    fn create_searcher(&self) -> Self::Searcher {
+    async fn create_searcher(&self) -> Self::Searcher {
         crate::searchers::kugou::KugouSearcher::new()
     }
-    fn create_api(&self) -> Self::Api {
+    async fn create_api(&self) -> Self::Api {
         crate::providers::kugou::KugouApi::new()
     }
     fn label() -> &'static str {
@@ -340,14 +340,14 @@ impl LyricsProvider for SpotifyProvider {
     type Api = crate::providers::spotify::SpotifyApi;
     type SearchResult = crate::searchers::spotify::SpotifySearchResult;
 
-    fn create_searcher(&self) -> Self::Searcher {
-        crate::searchers::spotify::SpotifySearcher::new(self.cookie.clone())
+    async fn create_searcher(&self) -> Self::Searcher {
+        crate::searchers::spotify::SpotifySearcher::new(self.cookie.clone()).await
     }
-    fn create_api(&self) -> Self::Api {
-        crate::providers::spotify::SpotifyApi::new(self.cookie.clone())
+    async fn create_api(&self) -> Self::Api {
+        crate::providers::spotify::SpotifyApi::new(self.cookie.clone()).await
     }
     fn label() -> &'static str {
-        "汽水音乐"
+        "Spotify"
     }
 
     async fn fetch_and_parse(
@@ -357,10 +357,9 @@ impl LyricsProvider for SpotifyProvider {
         use crate::parsers::spotify::SpotifyParser;
         let lryics = api
             .get_lyrics(&best.id)
-            .await?
-            .ok_or("汽水音乐: 获取歌曲详情失败")?;
+            .await?;
         if lryics.is_empty() {
-            return Err("汽水音乐: 歌词内容为空".into());
+            return Err("Spotify: 歌词内容为空".into());
         }
         Ok(SpotifyParser {}.parse(lryics)?)
     }
@@ -371,10 +370,10 @@ impl LyricsProvider for SodaMusicProvider {
     type Api = crate::providers::soda_music::SodaMusicApi;
     type SearchResult = crate::searchers::soda_music::SodaMusicSearchResult;
 
-    fn create_searcher(&self) -> Self::Searcher {
+    async fn create_searcher(&self) -> Self::Searcher {
         crate::searchers::soda_music::SodaMusicSearcher::new()
     }
-    fn create_api(&self) -> Self::Api {
+    async fn create_api(&self) -> Self::Api {
         crate::providers::soda_music::SodaMusicApi::new()
     }
     fn label() -> &'static str {
@@ -406,10 +405,10 @@ impl LyricsProvider for AppleMusicProvider {
     type Api = crate::providers::applemusic::ApplemusicApi;
     type SearchResult = crate::searchers::applemusic::ApplemusicSearchResult;
 
-    fn create_searcher(&self) -> Self::Searcher {
+    async fn create_searcher(&self) -> Self::Searcher {
         crate::searchers::applemusic::ApplemusicSearcher::new(self.token.clone())
     }
-    fn create_api(&self) -> Self::Api {
+    async fn create_api(&self) -> Self::Api {
         crate::providers::applemusic::ApplemusicApi::new(self.token.clone())
     }
     fn label() -> &'static str {
