@@ -1,6 +1,6 @@
 use crate::providers::spotify::SpotifyApi;
 use async_trait::async_trait;
-use super::{ISearcher, ISearchResult, SearcherType};
+use super::{ISearcher, ISearchResult};
 
 pub struct SpotifySearcher {
     api: SpotifyApi,
@@ -20,10 +20,6 @@ impl Default for SpotifySearcher {
 
 #[async_trait]
 impl ISearcher for SpotifySearcher {
-    fn name(&self) -> &str { "Spotify" }
-    fn display_name(&self) -> &str { "Spotify" }
-    fn searcher_type(&self) -> SearcherType { SearcherType::Spotify }
-
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
         let result = self.api.search(search_string).await?;
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();

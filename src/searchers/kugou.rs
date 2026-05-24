@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use crate::providers::kugou::KugouApi;
-use super::{ISearcher, ISearchResult, SearcherType};
+use super::{ISearcher, ISearchResult};
 pub struct KugouSearcher {
     api: KugouApi,
 }
@@ -20,10 +20,6 @@ impl Default for KugouSearcher {
 //duration只能api拿了
 #[async_trait]
 impl ISearcher for KugouSearcher {
-    fn name(&self) -> &str { "Kugou" }
-    fn display_name(&self) -> &str { "Kugou Music" }
-    fn searcher_type(&self) -> SearcherType { SearcherType::Kugou }
-
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
         let result = self.api.get_search_song(search_string).await?;
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();

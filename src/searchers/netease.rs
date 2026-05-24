@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use crate::providers::netease::NeteaseApi;
-use super::{ISearcher, ISearchResult, SearcherType};
+use super::{ISearcher, ISearchResult};
 pub struct NeteaseSearcher {
     api: NeteaseApi,
 }
@@ -19,10 +19,6 @@ impl Default for NeteaseSearcher {
 
 #[async_trait]
 impl ISearcher for NeteaseSearcher {
-    fn name(&self) -> &str { "Netease" }
-    fn display_name(&self) -> &str { "NetEase Cloud Music" }
-    fn searcher_type(&self) -> SearcherType { SearcherType::Netease }
-
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
         let result = self.api.search(search_string, 1).await?;
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();

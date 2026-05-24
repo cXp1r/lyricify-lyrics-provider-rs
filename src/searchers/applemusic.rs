@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use crate::providers::applemusic::ApplemusicApi;
-use super::{ISearcher, ISearchResult, SearcherType};
+use super::{ISearcher, ISearchResult};
 use crate::models::ITrackMetadata;
 
 pub struct ApplemusicSearcher {
@@ -22,10 +22,6 @@ impl Default for ApplemusicSearcher {
 //duration只能api拿了
 #[async_trait]
 impl ISearcher for ApplemusicSearcher {
-    fn name(&self) -> &str { "Applemusic" }
-    fn display_name(&self) -> &str { "Applemusic" }
-    fn searcher_type(&self) -> SearcherType { SearcherType::Kugou }
-
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
         let result = self.api.search(search_string).await?;
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();
@@ -65,18 +61,6 @@ impl ISearcher for ApplemusicSearcher {
         }
         Ok(results)
         
-    }
-    async fn make_search_string(&self, track: &dyn ITrackMetadata) -> Option<String> {
-        let combined = format!(
-            "{}",
-            track.title().unwrap_or_default(),
-        ).replace(" - ", " ").trim().to_string();
-
-        if combined.is_empty() {
-            None
-        } else {
-            Some(combined)
-        }
     }
     fn compare_track(&self, track: &dyn ITrackMetadata, result: &dyn ISearchResult) -> (i8, bool) {
         let mut score = 0i8;

@@ -36,14 +36,10 @@ pub trait ISearchResult: Send + Sync {
 /// 搜索提供者 trait
 #[async_trait]
 pub trait ISearcher: Send + Sync {
-    fn name(&self) -> &str;
-    fn display_name(&self) -> &str;
-    fn searcher_type(&self) -> SearcherType;
 
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>>;
 
-    
-    async fn make_search_string(&self, track: &dyn ITrackMetadata) -> Option<String> {
+    fn make_search_string(&self, track: &dyn ITrackMetadata) -> Option<String> {
         let combined = format!(
             "{} {}",
             track.title().unwrap_or_default(),
@@ -58,7 +54,7 @@ pub trait ISearcher: Send + Sync {
     }
     //下面那个函数调用了这个
     async fn search_for_results(&self, track: &dyn ITrackMetadata, full_search: bool) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
-        let search_string: String = match self.make_search_string(track).await {
+        let search_string: String = match self.make_search_string(track) {
             Some(s) => s,
             _ => return Ok(vec![]),
         };
@@ -164,12 +160,12 @@ pub trait ISearcher: Send + Sync {
                 }
             }
         }
-        //println!("{}:{}",result_title,score);
+        println!("{}:{}",result_title,score);
 
         // Artist match
         let artists: Vec<String> = track
             .artist()
-            .unwrap_or_default()   // 👈 关键
+            .unwrap_or_default()  
             .split(self.get_split_char())
             .map(|s| s.trim().to_lowercase())
             .filter(|s| !s.is_empty())
@@ -183,7 +179,7 @@ pub trait ISearcher: Send + Sync {
             }
         }
 
-        //println!("{} {}",result.artists().join("||"),score);
+        println!("{} {}",result.artists().join("||"),score);
         // Album match
         let track_album = track.album().unwrap_or_default().to_lowercase();
         let result_album = result.album().to_lowercase();
@@ -191,7 +187,7 @@ pub trait ISearcher: Send + Sync {
             score += 1;
         }
 
-        //println!("{} {}",result_album,score);
+        println!("{} {}",result_album,score);
         // Album artist match
         let track_album_artist = self.clean_title(&track.album_artist().unwrap_or_default().to_lowercase());
         let result_album_artist = result.album_artists().unwrap_or_default().to_vec();
@@ -233,7 +229,7 @@ pub trait ISearcher: Send + Sync {
                 false
             }
         };
-        //println!("{:?} {}\n",result.trial().unwrap_or_default(),score);
+        println!("{:?} {}\n",result.trial().unwrap_or_default(),score);
         (score, is_trial)
     }
 

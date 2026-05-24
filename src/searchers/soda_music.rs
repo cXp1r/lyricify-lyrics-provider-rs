@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use crate::providers::soda_music::SodaMusicApi;
-use super::{ISearcher, ISearchResult, SearcherType};
-use crate::searchers::ITrackMetadata;
+use super::{ISearcher, ISearchResult};
 pub struct SodaMusicSearcher {
     api: SodaMusicApi,
 }
@@ -20,10 +19,6 @@ impl Default for SodaMusicSearcher {
 
 #[async_trait]
 impl ISearcher for SodaMusicSearcher {
-    fn name(&self) -> &str { "SodaMusic" }
-    fn display_name(&self) -> &str { "Soda Music" }
-    fn searcher_type(&self) -> SearcherType { SearcherType::SodaMusic }
-
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
         let result = self.api.search(search_string).await?;
         let mut results: Vec<Box<dyn ISearchResult>> = Vec::new();
@@ -80,15 +75,6 @@ impl ISearcher for SodaMusicSearcher {
     fn min_score(&self) -> i8 { 5 }
     fn get_split_char(&self) -> char {
         ','
-    }
-    async fn make_search_string(&self, track: &dyn ITrackMetadata) -> Option<String> {
-        let combined = track.title().unwrap_or_default().to_string();
-
-        if combined.is_empty() {
-            None
-        } else {
-            Some(combined)
-        }
     }
 }
 
