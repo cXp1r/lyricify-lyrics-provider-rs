@@ -1,0 +1,61 @@
+{
+    "ntrial": {
+        "jtrack": {
+            "qqmusic": {
+                "title": "Remember",
+                "artist": "yuigot/早見沙織 (はやみ さおり)",
+                "album": "超かぐや姫！",
+                "album_artist": "",
+                "duration_ms": 253441
+            }
+        },
+        "etrack": {
+            "qqmusic": {
+                "title": "After Hours",
+                "artist": "The Weeknd",
+                "album": "After Hours (Explicit)",
+                "album_artist": "",
+                "duration_ms": 199000
+            }
+        },
+        "ctrack": {
+            "qqmusic": {
+                "title": "弱水三千",
+                "artist": "石头/张晓棠",
+                "album": "念",
+                "album_artist": "",
+                "duration_ms": 232616
+            }
+        }
+    },
+    "trial": {
+        "jtrack": {
+            "qqmusic": {
+                "title": "rise",
+                "artist": "安月名莉子 (Azuna Riko)",
+                "album": "TVアニメ「やがて君になる」オープニングテーマ「君にふれて」 (触摸你)",
+                "album_artist": "",
+                "duration_ms": 30066
+            }
+        },
+        "etrack": {
+            "qqmusic":{
+                "title": "After Hours",
+                "artist": "The Weeknd",
+                "album": "After Hours (Explicit)",
+                "album_artist": "",
+                "duration_ms": 60055
+            }
+        },
+        "ctrack": {
+            "qqmusic":{
+                "title": "告白气球",
+                "artist": "周杰伦",
+                "album": "周杰伦的床边故事",
+                "album_artist": "",
+                "duration_ms": 60055
+            }
+        }
+        
+    }
+}
