@@ -39,85 +39,95 @@ pub trait ISearcher: Send + Sync {
 
     async fn search_for_results_by_string(&self, search_string: &str) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>>;
 
-    fn make_search_string(&self, track: &dyn ITrackMetadata) -> Option<String> {
-        let combined = format!(
-            "{} {}",
-            track.title().unwrap_or_default(),
-            track.artist().unwrap_or_default(),
-        ).replace(" - ", " ").trim().to_string();
+    fn make_search_string(&self, track: &dyn ITrackMetadata) -> Vec<String> {
+        let title = track.title().unwrap_or_default().trim();
+        let artist = track.artist().unwrap_or_default().trim();
+        let album = track.album().unwrap_or_default().trim();
 
-        if combined.is_empty() {
-            None
-        } else {
-            Some(combined)
-        }
-    }
-    //下面那个函数调用了这个
-    async fn search_for_results(&self, track: &dyn ITrackMetadata, full_search: bool) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
-        let search_string: String = match self.make_search_string(track) {
-            Some(s) => s,
-            _ => return Ok(vec![]),
+        let join = |parts: &[&str]| {
+            parts.iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join(" ")
         };
 
-        let mut search_results: Vec<Box<dyn ISearchResult>> = Vec::new();
+        let mut strings = Vec::with_capacity(5);
 
-        let mut level = 1;
-        let mut current_search = search_string.clone();
-
-        loop {
-            let results = self.search_for_results_by_string(&current_search).await?;
-                search_results.extend(results);
-            
-            
-
-            let mut new_title = track.title().unwrap_or_default().to_string();
-            if let Some(idx) = new_title.find("(feat.") {
-                new_title = new_title[..idx].trim().to_string();
-            }
-            if let Some(idx) = new_title.find(" - feat.") {
-                new_title = new_title[..idx].trim().to_string();
-            }
-
-            if full_search || search_results.is_empty() {
-                let new_search = match level {
-                    1 => format!("{} {}", new_title, track.artist().unwrap_or_default().replace(", ", " ")).replace(" - ", " ").trim().to_string(),
-                    2 => new_title.replace(" - ", " ").trim().to_string(),
-                    _ => String::new(),
-                };
-                if new_search != current_search && !new_search.is_empty() {
-                    current_search = new_search;
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-
-            level += 1;
-            if level >= 3 {
-                break;
+        // 全量
+        let full = join(&[title, artist, album]);
+        if !full.is_empty() {
+            strings.push(full);
+        }
+        // 普通搜索法,qq音乐的艺人有的无法命中
+        if !title.is_empty() && !artist.is_empty() {
+            let s = join(&[title, artist]);
+            if s != strings.first().map(|s| s.as_str()).unwrap_or("") {
+                strings.push(s);
             }
         }
-
-        // Set match types
-        for result in search_results.iter_mut() {
-            let (mt, is_trial) = self.compare_track(track, result.as_ref());
-            result.set_match_score(mt);
-            result.set_trial(is_trial);
+        // 有的歌曲标题一堆雷霆(),直接搜索反而效果更好
+        if !title.is_empty() && title != strings.first().map(|s| s.as_str()).unwrap_or("") {
+            strings.push(title.to_string());
+        }
+        // title + album
+        if !title.is_empty() && !album.is_empty() {
+            let s = join(&[title, album]);
+            if s != strings.first().map(|s| s.as_str()).unwrap_or("") {
+                strings.push(s);
+            }
+        }
+        // 清洗之后的(感觉没啥效果,)
+        let ct = self.clean_title(&self.remove_feat(title));
+        let ca = self.clean_title(artist);
+        let cal = self.clean_title(album);
+        let cleaned = join(&[&ct, &ca, &cal]);
+        if !cleaned.is_empty() && cleaned != strings.first().map(|s| s.as_str()).unwrap_or("") {
+            strings.push(cleaned);
         }
 
-        // Sort by match type (descending)
-        search_results.sort_by(|a, b| {
-            let a_val = a.match_score();
-            let b_val = b.match_score();
-            b_val.cmp(&a_val)
-        });
-
-        Ok(search_results)
+        strings
     }
-
     /// 最低匹配分数线，低于此分数的结果将被丢弃（可 override）
     fn min_score(&self) -> i8 { 5 }
+    /// 直接返回分数线，大于此分数线可以直接拿去请求歌词（可 override）
+    fn wow_score(&self) -> i8 { 7 }
+    //下面那个函数调用了这个
+    async fn search_for_results(&self, track: &dyn ITrackMetadata, _full_search: bool) -> Result<Vec<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
+        let strings = self.make_search_string(track);
+        if strings.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let threshold = self.min_score();
+        let wow = self.wow_score();
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+
+        for s in &strings {
+            if !seen.insert(s.as_str()) {
+                continue;
+            }
+
+            let results = self.search_for_results_by_string(s).await?;
+            let mut group_best: Option<Box<dyn ISearchResult>> = None;
+
+            for mut r in results {
+                let (mt, is_trial) = self.compare_track(track, r.as_ref());
+                r.set_match_score(mt);
+                r.set_trial(is_trial);
+                if mt > wow {
+                    return Ok(vec![r]);
+                }
+                if mt >= threshold && group_best.as_ref().map_or(true, |b| mt > b.match_score()) {
+                    group_best = Some(r);
+                }
+            }
+
+            if let Some(best) = group_best {
+                return Ok(vec![best]);
+            }
+        }
+
+        Err("Nothing here".into())
+    }
+
+    
 
     //smtc统一接口调用了这个
     async fn search_for_result(&self, track: &dyn ITrackMetadata) -> Result<Option<Box<dyn ISearchResult>>, Box<dyn std::error::Error + Send + Sync>> {
@@ -183,8 +193,12 @@ pub trait ISearcher: Send + Sync {
         // Album match
         let track_album = track.album().unwrap_or_default().to_lowercase();
         let result_album = result.album().to_lowercase();
-        if !track_album.is_empty() && !result_album.is_empty() && track_album == result_album {
-            score += 1;
+        if !track_album.is_empty() && !result_album.is_empty(){
+            if track_album == result_album {
+                score += 2;
+            } else if result_album.contains(&track_album) || track_album.contains(&result_album){
+                score += 1;
+            }
         }
 
         println!("{} {}",result_album,score);
@@ -253,5 +267,16 @@ pub trait ISearcher: Send + Sync {
             })
             .collect();
         result.trim().to_string()
+    }
+
+    fn remove_feat(&self, title: &str) -> String {
+        let mut s = title.to_string();
+        if let Some(idx) = s.find("(feat.") {
+            s = s[..idx].trim().to_string();
+        }
+        if let Some(idx) = s.find(" - feat.") {
+            s = s[..idx].trim().to_string();
+        }
+        s
     }
 }
