@@ -96,5 +96,6 @@ impl ISearchResult for QQMusicSearchResult {
     fn as_any(&self) -> &dyn std::any::Any { self }
     fn trial(&self) -> Option<[u32; 2]> { self.trial }
     fn set_trial(&mut self, i: bool) { self.is_trial = i; }
+    fn is_trial(&self) -> bool { self.is_trial }
 }
 

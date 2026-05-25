@@ -30,6 +30,7 @@ pub trait ISearchResult: Send + Sync {
     fn set_match_score(&mut self, mt: i8);
     fn as_any(&self) -> &dyn std::any::Any;
     fn trial(&self) -> Option<[u32; 2]>;
+    fn is_trial(&self) -> bool;
     fn set_trial(&mut self, i: bool);
 }
 
@@ -236,7 +237,8 @@ pub trait ISearcher: Send + Sync {
             if let Some(duration_ms) = track.duration_ms() {
                 if let Some(result_duration_ms) = result.trial() {
                     let diff = (duration_ms as i64 - result_duration_ms[1] as i64).abs();
-                    //println!("{}", diff);
+                    #[cfg(debug_assertions)]
+                    println!("{}", diff);
                     if diff <= 100 { // 完全匹配
                         score += 2;
                         true

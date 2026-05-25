@@ -158,7 +158,6 @@ async fn fetch_lyrics<P: LyricsProvider>(
     if lines.is_empty() {
         return Err(format!("{}: 未获取到歌词内容", P::label()).into());
     }
-
     Ok(LyricsData {
         file: None,
         lines,
@@ -168,7 +167,7 @@ async fn fetch_lyrics<P: LyricsProvider>(
             album: Some(best.album().to_string()),
             duration_ms: best.duration_ms(),
             score: best.match_score(),
-            is_trial: best.trial().is_some(),
+            is_trial: best.is_trial(),
             trial: best.trial(),
             ..Default::default()
         }),

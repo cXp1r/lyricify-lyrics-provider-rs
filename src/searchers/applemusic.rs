@@ -163,4 +163,5 @@ impl ISearchResult for ApplemusicSearchResult {
     fn as_any(&self) -> &dyn std::any::Any { self }
     fn trial(&self) -> Option<[u32; 2]> { None }
     fn set_trial(&mut self, _i: bool) {}
+    fn is_trial(&self) -> bool { false }
 }
