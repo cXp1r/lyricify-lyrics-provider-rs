@@ -26,10 +26,10 @@
         "trial": {
             "jtrack": {
                 "title": "hectopascal",
-                "artist": "小糸 侑(CV:高田憂希)、七海燈子(CV:寿 美菜子) — TVアニメ「やがて君になる」エンディングテーマ「hectopascal」 - E",
+                "artist": "小糸 侑(CV:高田憂希)、七海燈子(CV:寿 美菜子) — TVアニメ「やがて君になる」エンディングテーマ「hectopascal」 - EP",
                 "album": "",
-                "album_artist": "小糸 侑(CV:高田憂希)、七海燈子(CV:寿 美菜子) — TVアニメ「やがて君になる」エンディングテーマ「hectopascal」 - E",
-                "duration_ms": 237000
+                "album_artist": "小糸 侑(CV:高田憂希)、七海燈子(CV:寿 美菜子) — TVアニメ「やがて君になる」エンディングテーマ「hectopascal」 - EP",
+                "duration_ms": 237507
             },
             "etrack": {
                 "title": "After Hours",
@@ -61,7 +61,7 @@
                 "artist": "The Weeknd",
                 "album": "After Hours (Explicit)",
                 "album_artist": "",
-                "duration_ms": 199000
+                "duration_ms": 360000
             },
             "ctrack": {
                 "title": "弱水三千",
@@ -92,6 +92,95 @@
                 "album": "周杰伦的床边故事",
                 "album_artist": "",
                 "duration_ms": 60055
+            }
+        }
+    },
+    "netease": {
+        "ntrial": {
+            "jtrack": {
+                "title": "君にふれて",
+                "artist": "安月名莉子",
+                "album": "TVアニメ「やがて君になる」オープニングテーマ「君にふれて」",
+                "album_artist": "",
+                "duration_ms": 252203
+            },
+            "etrack": {
+                "title": "Talk My Way Out of It",
+                "artist": "J-Hype",
+                "album": "I Believe In Love",
+                "album_artist": "",
+                "duration_ms": 241073
+            },
+            "ctrack": {
+                "title": "九万字",
+                "artist": "黄诗扶",
+                "album": "人间不值得",
+                "album_artist": "",
+                "duration_ms": 232060
+            }
+        },
+        "trial": {
+            "jtrack": {
+                "title": "君にふれて",
+                "artist": "安月名莉子",
+                "album": "TVアニメ「やがて君になる」オープニングテーマ「君にふれて」",
+                "album_artist": "",
+                "duration_ms": 30000
+            },
+            "etrack": {
+                "title": "Is There Someone Else?",
+                "artist": "The Weeknd",
+                "album": "Dawn FM",
+                "album_artist": "",
+                "duration_ms": 30000
+            },
+            "ctrack": {
+                "title": "Letting Go",
+                "artist": "蔡健雅",
+                "album": "说到爱",
+                "album_artist": "",
+                "duration_ms": 30000
+            }
+        }
+    },
+    "soda_music": {
+        "ntrial": {
+            "strack": {
+                "title": "DREAM FUNK",
+                "artist": "LUMIX, KXRSED",
+                "album": "",
+                "album_artist": "",
+                "duration_ms": 96000
+            },
+            "jtrack": {
+                "title": "星降る海",
+                "artist": "Aqu3ra, 早见沙织",
+                "album": "",
+                "album_artist": "",
+                "duration_ms": 253440
+            },
+            "etrack": {
+                "title": "Right Now (Na Na Na)",
+                "artist": "Akon",
+                "album": "",
+                "album_artist": "",
+                "duration_ms": 182047
+            }
+        },
+        "trial": {
+            "etrack": {
+                "title": "Landslide",
+                "artist": "Oh Wonder",
+                "album": "",
+                "album_artist": "",
+                "duration_ms": 29001
+            },
+            "ctrack": {
+                "title": "恶作剧",
+                "artist": "林依晨",
+                "album": "",
+                "album_artist": "",
+                "duration_ms": 57300
             }
         }
     }
