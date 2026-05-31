@@ -2,6 +2,7 @@ use async_trait::async_trait;
 
 use crate::models::{LineInfo, LyricsData, TrackMetadata, ITrackMetadata};
 use crate::searchers::{ISearcher, ISearchResult};
+use crate::smtc_lyrics::MusicPlayer::LXMusic;
 
 pub struct Session {
     pub applemusic_token: Option<String>,
@@ -17,6 +18,8 @@ pub enum MusicPlayer {
     SodaMusic,
     Spotify,
     AppleMusic,
+    LXMusic,
+    AnyListen,
 }
 
 impl MusicPlayer {
@@ -28,18 +31,9 @@ impl MusicPlayer {
             MusicPlayer::SodaMusic => "汽水音乐",
             MusicPlayer::Spotify => "Spotify",
             MusicPlayer::AppleMusic => "AppleMusic",
+            MusicPlayer::LXMusic => "落雪音乐",
+            MusicPlayer::AnyListen => "Any Listen",
         }
-    }
-
-    pub fn all_sorted() -> &'static [MusicPlayer] {
-        &[
-            MusicPlayer::Kugou,
-            MusicPlayer::Netease,
-            MusicPlayer::QQMusic,
-            MusicPlayer::SodaMusic,
-            MusicPlayer::AppleMusic,
-            MusicPlayer::Spotify,
-        ]
     }
 }
 
@@ -51,6 +45,8 @@ pub fn id2player(app_id: &str) -> Result<MusicPlayer, String> {
         "\u{6c7d}\u{6c34}\u{97f3}\u{4e50}" => MusicPlayer::SodaMusic,
         "AppleInc.AppleMusicWin_nzyj5cx40ttqa!App" => MusicPlayer::AppleMusic,
         "Spotify.exe" => MusicPlayer::Spotify,
+        "cn.toside.music.desktop" => MusicPlayer::LXMusic,
+        "cn.toside.anylisten.desktop" => MusicPlayer::AnyListen,
         _ => return Err(format!("Unsupported appid: {}", app_id)),
     })
 }
@@ -200,6 +196,12 @@ async fn fetch_lyrics_from_player(
                 .ok_or("Apple Music token not set")?
                 .clone();
             fetch_lyrics(&AppleMusicProvider { token }, track).await
+        },
+        MusicPlayer::LXMusic => {
+            Err("Unsupported player".into())
+        }
+        MusicPlayer::AnyListen => {
+            Err("Unsupported player".into())
         }
 
     }

@@ -18,18 +18,17 @@ fn player_json_key(player: MusicPlayer) -> &'static str {
         MusicPlayer::SodaMusic => "soda_music",
         MusicPlayer::AppleMusic => "applemusic",
         MusicPlayer::Spotify => "spotify",
+        _ => {unreachable!("unsupported player")},
     }
 }
 
 #[tokio::test]
 async fn test_interactive() {
-    // 加载 track.json
     let track_db: Option<serde_json::Value> =
         std::fs::read_to_string("tests/track.json")
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok());
 
-    // 1. 选播放器
     let labels: Vec<&str> = APP_IDS.iter().map(|(_, p)| p.display_name()).collect();
     let sel = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("选择播放器")
@@ -39,7 +38,7 @@ async fn test_interactive() {
         .unwrap();
     let (_app_id, player) = APP_IDS[sel];
 
-    // 2. 选试听模式
+
     let trial_labels = &["非试听 (ntrial)", "试听 (trial)"];
     let trial_sel = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("选择模式")
@@ -49,7 +48,7 @@ async fn test_interactive() {
         .unwrap();
     let trial_key = if trial_sel == 0 { "ntrial" } else { "trial" };
 
-    // 3. 从 track.json 读取当前播放器+模式下的曲目列表
+
     let mut track_keys: Vec<String> = Vec::new();
     let mut track_labels: Vec<String> = Vec::new();
     if let Some(ref db) = track_db {
@@ -65,7 +64,7 @@ async fn test_interactive() {
             }
         }
     }
-    // 追加手动输入选项
+
     track_labels.push("手动输入".to_string());
 
     let track_sel = Select::with_theme(&ColorfulTheme::default())
@@ -75,7 +74,7 @@ async fn test_interactive() {
         .interact()
         .unwrap();
 
-    // 4. 获取曲目元数据
+
     let (title, artist, album, album_artist, duration_ms) = if track_sel < track_keys.len() {
         let track_key = &track_keys[track_sel];
 
@@ -100,7 +99,6 @@ async fn test_interactive() {
             unreachable!()
         }
     } else {
-        // 手动输入
         let title: String = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("title")
             .interact_text()
